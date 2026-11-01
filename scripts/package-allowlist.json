@@ -109,6 +109,7 @@
   "site/src/components/landing/Pillars.astro",
   "site/src/components/landing/Routines.astro",
   "site/src/components/landing/SeoHead.astro",
+  "site/src/components/landing/SoftwareFactory.astro",
   "site/src/content.config.ts",
   "site/src/content/docs/docs/concepts/briefs.md",
   "site/src/content/docs/docs/concepts/comparison.md",

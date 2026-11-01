@@ -43,6 +43,16 @@ Every command prints one line of JSON. Run `devtwin help` to list the commands.
 
 Read [Architecture](https://github.com/sundharesan11/devtwin/blob/main/docs/ARCHITECTURE.md) for the details.
 
+## Context for your AI software factory
+
+An AI software factory connects agents, engineering workflows and delivery checks to move work from requirements to production.
+
+devtwin provides the context and learning layer. It gives Claude Code, Codex and Gemini CLI access to project decisions, constraints, preferences and recorded handoffs. Relevant lessons help later sessions reuse what earlier work taught you. With your consent, lessons can also reach your team's hub, repository or knowledge server.
+
+For example, you record a pagination decision. Claude Code builds from that context and records a handoff. Codex reviews the change and finds a missing edge case. An agent records the lesson. With your consent, the team can reuse it when matching work comes up.
+
+Use devtwin alongside your agent orchestration, code review and CI/CD tools. Your workflow coordinates the work. devtwin carries the engineering knowledge between sessions.
+
 ## What's included
 
 | Feature | What it does | Guide |

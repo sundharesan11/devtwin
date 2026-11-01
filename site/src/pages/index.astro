@@ -12,6 +12,8 @@ import '../styles/motion.css';
 
 import Nav from '../components/landing/Nav.astro';
 import Hero from '../components/landing/Hero.astro';
+import ContextGraph from '../components/landing/ContextGraph.astro';
+import SoftwareFactory from '../components/landing/SoftwareFactory.astro';
 import Pillars from '../components/landing/Pillars.astro';
 import Commands from '../components/landing/Commands.astro';
 import InstallBand from '../components/landing/InstallBand.astro';
@@ -39,6 +41,26 @@ import SeoHead from '../components/landing/SeoHead.astro';
 
 <main id="main">
 <Hero />
+<SoftwareFactory />
+<div class="landing-benefits wrap">
+      <ul class="benefit-strip" aria-label="Why use devtwin">
+        <li><strong>Resume the work.</strong><span>The next session starts with your last handoff.</span></li>
+        <li><strong>Reuse the lesson.</strong><span>Bring what you learned to matching work.</span></li>
+        <li><strong>Share the knowledge.</strong><span>Help your team learn, with your consent.</span></li>
+      </ul>
+</div>
+<section class="context-detail" id="context-in-action" aria-labelledby="context-detail-title">
+  <div class="wrap">
+    <div class="context-detail-heading">
+      <div class="kicker">How it works</div>
+      <h2 class="h2" id="context-detail-title">The right context.<br /><span class="soft">In your next agent session.</span></h2>
+      <p>See how your preferences, project decisions and lessons become a brief your agents can use.</p>
+    </div>
+    <div class="stage stage-wide reveal" id="context-graph" data-fit-graph>
+      <div class="stage-inner"><ContextGraph /></div>
+    </div>
+  </div>
+</section>
 <Pillars />
 <CommandMarquee />
 <Commands />
@@ -114,3 +136,61 @@ import SeoHead from '../components/landing/SeoHead.astro';
 </script>
 </body>
 </html>
+
+<style>
+.landing-benefits{padding-bottom:48px}
+.context-detail{padding:32px 0 40px;scroll-margin-top:96px}
+.context-detail-heading{max-width:760px}
+.context-detail-heading .h2{font-size:clamp(30px,3.5vw,44px);line-height:1.1;margin-bottom:16px}
+.context-detail-heading p{color:var(--muted);font-size:15px;line-height:1.8;max-width:600px}
+.context-detail .stage{margin-top:28px;scroll-margin-top:96px}
+.context-detail .stage[data-fitted]{width:var(--graph-width);margin-inline:auto;max-width:100%;padding:1px}
+.context-detail .stage[data-fitted] .stage-inner{width:1440px;zoom:var(--graph-scale)}
+
+.benefit-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px;list-style:none;margin:0;padding:0;text-align:left}
+.benefit-strip strong{display:block;font:500 17px var(--display);color:var(--text);margin-bottom:7px}
+.benefit-strip span{display:block;font-size:13px;line-height:1.7;color:var(--muted)}
+@media(max-width:600px){.benefit-strip{grid-template-columns:1fr;gap:18px}}
+</style>
+
+<script>
+  // Scale the inner diagram; the unscaled stage retains its rendered footprint
+  // for the page rail, border trace and normal document flow.
+  const fitStage = document.querySelector<HTMLElement>('[data-fit-graph]');
+  const fitInner = fitStage?.querySelector<HTMLElement>('.stage-inner');
+  const fitNav = document.querySelector<HTMLElement>('.nav');
+  if (fitStage && fitInner) {
+    let queued = false;
+    const reset = () => {
+      fitStage.removeAttribute('data-fitted');
+      fitStage.style.removeProperty('--graph-scale');
+      fitStage.style.removeProperty('--graph-width');
+    };
+    const fit = () => {
+      queued = false;
+      if (innerWidth < 1024) { reset(); return; }
+      const parent = fitStage.parentElement!;
+      const padding = getComputedStyle(parent);
+      const availableWidth = parent.clientWidth - parseFloat(padding.paddingLeft) - parseFloat(padding.paddingRight);
+      fitStage.setAttribute('data-fitted', '');
+      // Establish the natural desktop layout before measuring its height.
+      fitStage.style.setProperty('--graph-scale', '.75');
+      fitStage.style.setProperty('--graph-width', '1082px');
+      const naturalHeight = fitInner.offsetHeight;
+      const availableHeight = innerHeight - (fitNav?.offsetHeight ?? 80) - 36;
+      const scale = Math.min(.85, (availableWidth - 2) / 1440, (availableHeight - 2) / naturalHeight);
+      // Small windows keep the readable native layout and can scroll.
+      if (!Number.isFinite(scale) || scale < .65) { reset(); return; }
+      fitStage.style.setProperty('--graph-scale', String(scale));
+      fitStage.style.setProperty('--graph-width', `${1440 * scale + 2}px`);
+    };
+    const scheduleFit = () => {
+      if (!queued) { queued = true; requestAnimationFrame(fit); }
+    };
+    new ResizeObserver(scheduleFit).observe(fitStage.parentElement!);
+    if (fitNav) new ResizeObserver(scheduleFit).observe(fitNav);
+    addEventListener('resize', scheduleFit);
+    document.fonts.ready.then(scheduleFit);
+    scheduleFit();
+  }
+</script>
