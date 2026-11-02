@@ -3,7 +3,7 @@
  * Tokens mirror the landing page (site/src/styles/landing.css :root):
  *   --bg #06080f, --bg-2 #090d18, --surface #0e1321, --surface-2 #131a2b,
  *   --surface-3 #1a2236, --text #edf0f7, --muted #a6b0c4, --faint #808aa2,
- *   --accent #ff8a3d, --accent-2 #ffb07a, --accent-ink #1c0c02.
+ *   --accent #ffc53d, --accent-2 #ffd978, --accent-ink #1f1500.
  * Unlayered rules here win over Starlight's @layer styles.
  */
 
@@ -22,18 +22,18 @@
 	--sl-color-gray-6: #0e1321;
 	--sl-color-black: #06080f;
 
-	--sl-color-accent-low: #3a1d08;
-	--sl-color-accent: #ff8a3d;
-	--sl-color-accent-high: #ffb07a;
+	--sl-color-accent-low: #3a2a06;
+	--sl-color-accent: #ffc53d;
+	--sl-color-accent-high: #ffd978;
 
 	--sl-color-text: #c9d0de;
-	--sl-color-text-accent: #ffb07a;
-	--sl-color-text-invert: #1c0c02;
+	--sl-color-text-accent: #ffd978;
+	--sl-color-text-invert: #1f1500;
 	--sl-color-bg: #06080f;
 	--sl-color-bg-nav: rgba(6, 8, 15, 0.86);
 	--sl-color-bg-sidebar: #090d18;
 	--sl-color-bg-inline-code: #131a2b;
-	--sl-color-bg-accent: #ff8a3d;
+	--sl-color-bg-accent: #ffc53d;
 	--sl-color-hairline-light: rgba(150, 170, 215, 0.2);
 	--sl-color-hairline: rgba(150, 170, 215, 0.11);
 	--sl-color-hairline-shade: #06080f;
@@ -52,18 +52,18 @@
 	--sl-color-gray-7: #f6f8fc;
 	--sl-color-black: #ffffff;
 
-	--sl-color-accent-low: #ffe3cf;
-	--sl-color-accent: #c2540f;
-	--sl-color-accent-high: #8a3606;
+	--sl-color-accent-low: #fff1c7;
+	--sl-color-accent: #8a6100;
+	--sl-color-accent-high: #5c4000;
 
 	--sl-color-text: #2c3550;
-	--sl-color-text-accent: #b14a08;
+	--sl-color-text-accent: #7a5600;
 	--sl-color-text-invert: #ffffff;
 	--sl-color-bg: #ffffff;
 	--sl-color-bg-nav: rgba(255, 255, 255, 0.9);
 	--sl-color-bg-sidebar: #f6f8fc;
 	--sl-color-bg-inline-code: #eef1f7;
-	--sl-color-bg-accent: #c2540f;
+	--sl-color-bg-accent: #8a6100;
 	--sl-color-hairline-light: #e2e6ef;
 	--sl-color-hairline: #e2e6ef;
 	--sl-color-hairline-shade: #c9d0de;
@@ -90,7 +90,7 @@
 }
 /* The same breathing glow as the landing page's nav mark. */
 @keyframes dx-mark-breathe {
-	50% { box-shadow: 0 0 0 1px rgba(255, 138, 61, 0.35), 0 0 14px rgba(255, 138, 61, 0.45); }
+	50% { box-shadow: 0 0 0 1px rgba(255,197,61, 0.35), 0 0 14px rgba(255,197,61, 0.45); }
 }
 @media (prefers-reduced-motion: reduce) {
 	.site-title img { animation: none; }

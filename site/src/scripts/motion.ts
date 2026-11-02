@@ -266,7 +266,7 @@ function drawGrid(t: number) {
 	for (let k = -K; k <= K; k++) {
 		const x = k * s;
 		const isHot = k === hotK || k === -hotK;
-		g.strokeStyle = isHot ? 'rgba(255,138,61,.34)' : 'rgba(140,160,205,.16)';
+		g.strokeStyle = isHot ? 'rgba(255,197,61,.34)' : 'rgba(140,160,205,.16)';
 		g.beginPath();
 		g.moveTo(cx + (x * f) / zN, HZ + f / zN);
 		g.lineTo(cx + (x * f) / zF, HZ + f / zF);
@@ -283,7 +283,7 @@ function drawGrid(t: number) {
 		const y = HZ + f / z;
 		const a = Math.min(1, 2.4 / z);
 		const hotL = (i + base) % 9 === 0;
-		g.strokeStyle = hotL ? `rgba(255,138,61,${(0.5 * a).toFixed(3)})` : `rgba(140,160,205,${(0.2 * a).toFixed(3)})`;
+		g.strokeStyle = hotL ? `rgba(255,197,61,${(0.5 * a).toFixed(3)})` : `rgba(140,160,205,${(0.2 * a).toFixed(3)})`;
 		g.beginPath();
 		g.moveTo(0, y);
 		g.lineTo(HW, y);
@@ -299,9 +299,9 @@ function drawGrid(t: number) {
 	// horizon hairline + glow
 	g.globalCompositeOperation = 'source-over';
 	const hz = g.createLinearGradient(0, 0, HW, 0);
-	hz.addColorStop(0, 'rgba(255,138,61,0)');
-	hz.addColorStop(0.5, 'rgba(255,138,61,.55)');
-	hz.addColorStop(1, 'rgba(255,138,61,0)');
+	hz.addColorStop(0, 'rgba(255,197,61,0)');
+	hz.addColorStop(0.5, 'rgba(255,197,61,.55)');
+	hz.addColorStop(1, 'rgba(255,197,61,0)');
 	g.fillStyle = hz;
 	g.fillRect(0, HZ, HW, 1);
 	g.globalAlpha = 0.18;
@@ -589,7 +589,7 @@ function buildRail() {
 	}
 	for (const v of vias) svgEl('circle', { cx: v[0], cy: v[1], r: slim ? 1.8 : 2.6, class: 'r-via' }, rail);
 	svgEl('circle', { cx: lane, cy: y + 90, r: slim ? 2 : 3, class: 'r-via' }, rail);
-	const cols = ['#ff8a3d', '#ffb07a', '#ff8a3d', '#74e0cc'];
+	const cols = ['#ffc53d', '#ffd978', '#ffc53d', '#74e0cc'];
 	for (const col of cols) {
 		const pg = svgEl('g', { class: 'r-pkt' }, rail);
 		svgEl('circle', { r: slim ? 4 : 6, fill: col, 'fill-opacity': '.16' }, pg);
