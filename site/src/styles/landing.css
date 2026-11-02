@@ -95,6 +95,7 @@
 }
 :root[data-theme="light"] :is(.frame,.stage,.band-cmd){color:var(--text)}
 :root[data-theme="light"] .band-cmd{background:var(--bg)}
+.theme-toggle[hidden]{display:none}
 .theme-toggle{width:34px;padding:0;justify-content:center}
 .theme-toggle svg{flex:none;width:18px;height:18px}
 .theme-toggle .i-moon,:root[data-theme="light"] .theme-toggle .i-sun{display:none}

@@ -19,11 +19,12 @@ const image = new URL(withBase('/og.png'), site).href;
 <title>{title}</title>
 <meta name="description" content={description}>
 {noindex ? <meta name="robots" content="noindex"> : <link rel="canonical" href={canonical}>}
-<meta name="color-scheme" content="dark light">
+<meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#06080f">
-<!-- Theme gate, before first paint. The choice is shared with the docs (Starlight's
-     "starlight-theme" key); with no choice, the system setting decides. -->
-<script is:inline>(function(){var r=document.documentElement,t='';try{t=localStorage.getItem('starlight-theme')||''}catch(e){}if(t!=='light'&&t!=='dark')t=window.matchMedia&&matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';r.dataset.theme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='light'?'#f7f5ef':'#06080f'})();</script>
+<!-- Theme gate, before first paint. The light theme is built but switched off for now:
+     the landing page always loads dark. To turn it on, read the docs' "starlight-theme"
+     choice (or the system setting) here and remove `hidden` from the nav toggle. -->
+<script is:inline>document.documentElement.dataset.theme='dark';</script>
 
 <link rel="icon" href={withBase('/favicon.ico')} sizes="32x32">
 <link rel="icon" href={withBase('/favicon.svg')} type="image/svg+xml">
