@@ -246,6 +246,23 @@ function sizeHero() {
 	heroCanvas.width = Math.round(HW * DPR);
 	heroCanvas.height = Math.round(HH * DPR);
 }
+// Grid colours follow the theme tokens. The nav theme toggle fires 'themechange'.
+let gridHot = '255,197,61';
+let gridLine = '140,160,205';
+let ditherHot = [255, 197, 61];
+let ditherCool = [24, 58, 56];
+const rgbOf = (v: string, fallback: number[]) => {
+	const n = v.split(',').map((x) => Number(x.trim()));
+	return n.length === 3 && n.every((x) => Number.isFinite(x)) ? n : fallback;
+};
+function readGridTheme() {
+	const cs = getComputedStyle(document.documentElement);
+	gridHot = cs.getPropertyValue('--accent-rgb').trim() || gridHot;
+	gridLine = cs.getPropertyValue('--line-rgb').trim() || gridLine;
+	ditherHot = rgbOf(cs.getPropertyValue('--dither-hot-rgb'), ditherHot);
+	ditherCool = rgbOf(cs.getPropertyValue('--dither-cool-rgb'), ditherCool);
+}
+readGridTheme();
 function drawGrid(t: number) {
 	const g = hx;
 	if (!g || !HW) return;
@@ -266,7 +283,7 @@ function drawGrid(t: number) {
 	for (let k = -K; k <= K; k++) {
 		const x = k * s;
 		const isHot = k === hotK || k === -hotK;
-		g.strokeStyle = isHot ? 'rgba(255,197,61,.34)' : 'rgba(140,160,205,.16)';
+		g.strokeStyle = isHot ? `rgba(${gridHot},.34)` : `rgba(${gridLine},.16)`;
 		g.beginPath();
 		g.moveTo(cx + (x * f) / zN, HZ + f / zN);
 		g.lineTo(cx + (x * f) / zF, HZ + f / zF);
@@ -283,7 +300,7 @@ function drawGrid(t: number) {
 		const y = HZ + f / z;
 		const a = Math.min(1, 2.4 / z);
 		const hotL = (i + base) % 9 === 0;
-		g.strokeStyle = hotL ? `rgba(255,197,61,${(0.5 * a).toFixed(3)})` : `rgba(140,160,205,${(0.2 * a).toFixed(3)})`;
+		g.strokeStyle = hotL ? `rgba(${gridHot},${(0.5 * a).toFixed(3)})` : `rgba(${gridLine},${(0.2 * a).toFixed(3)})`;
 		g.beginPath();
 		g.moveTo(0, y);
 		g.lineTo(HW, y);
@@ -299,9 +316,9 @@ function drawGrid(t: number) {
 	// horizon hairline + glow
 	g.globalCompositeOperation = 'source-over';
 	const hz = g.createLinearGradient(0, 0, HW, 0);
-	hz.addColorStop(0, 'rgba(255,197,61,0)');
-	hz.addColorStop(0.5, 'rgba(255,197,61,.55)');
-	hz.addColorStop(1, 'rgba(255,197,61,0)');
+	hz.addColorStop(0, `rgba(${gridHot},0)`);
+	hz.addColorStop(0.5, `rgba(${gridHot},.55)`);
+	hz.addColorStop(1, `rgba(${gridHot},0)`);
 	g.fillStyle = hz;
 	g.fillRect(0, HZ, HW, 1);
 	g.globalAlpha = 0.18;
@@ -310,6 +327,13 @@ function drawGrid(t: number) {
 }
 const gridStill = () => drawGrid(0);
 if (hero && hx) addTask(hero, drawGrid, gridStill);
+addEventListener('themechange', () => {
+	readGridTheme();
+	if (!isOn()) {
+		gridStill();
+		ditherStill?.();
+	}
+});
 
 /* ---------------- [crt] power-on + rolling bar ---------------- */
 const crt = document.querySelector<HTMLElement>('.crt');
@@ -419,9 +443,9 @@ let ditherStill: (() => void) | null = null;
 				const tq = 0.22 + 0.18 * Math.sin(u * 9 - t * 0.7 + vv * 4) * (1 - vv * 0.4);
 				const i = (y * w + x) * 4;
 				if (o > th) {
-					d[i] = 255; d[i + 1] = 138; d[i + 2] = 61; d[i + 3] = 255;
+					d[i] = ditherHot[0]; d[i + 1] = ditherHot[1]; d[i + 2] = ditherHot[2]; d[i + 3] = 255;
 				} else if (tq * 0.75 > th) {
-					d[i] = 24; d[i + 1] = 58; d[i + 2] = 56; d[i + 3] = 255;
+					d[i] = ditherCool[0]; d[i + 1] = ditherCool[1]; d[i + 2] = ditherCool[2]; d[i + 3] = 255;
 				} else {
 					d[i + 3] = 0;
 				}
@@ -589,11 +613,11 @@ function buildRail() {
 	}
 	for (const v of vias) svgEl('circle', { cx: v[0], cy: v[1], r: slim ? 1.8 : 2.6, class: 'r-via' }, rail);
 	svgEl('circle', { cx: lane, cy: y + 90, r: slim ? 2 : 3, class: 'r-via' }, rail);
-	const cols = ['#ffc53d', '#ffd978', '#ffc53d', '#74e0cc'];
+	const cols = ['var(--accent)', 'var(--accent-2)', 'var(--accent)', 'var(--cool)'];
 	for (const col of cols) {
 		const pg = svgEl('g', { class: 'r-pkt' }, rail);
-		svgEl('circle', { r: slim ? 4 : 6, fill: col, 'fill-opacity': '.16' }, pg);
-		svgEl('circle', { r: slim ? 1.5 : 1.9, fill: col }, pg);
+		svgEl('circle', { r: slim ? 4 : 6, style: `fill:${col}`, 'fill-opacity': '.16' }, pg);
+		svgEl('circle', { r: slim ? 1.5 : 1.9, style: `fill:${col}` }, pg);
 		R.pkts.push(pg);
 	}
 	updateLit();
