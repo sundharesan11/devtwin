@@ -21,6 +21,10 @@ const image = new URL(withBase('/og.png'), site).href;
 {noindex ? <meta name="robots" content="noindex"> : <link rel="canonical" href={canonical}>}
 <meta name="color-scheme" content="dark">
 <meta name="theme-color" content="#06080f">
+<!-- Theme gate, before first paint. The light theme is built but switched off for now:
+     the landing page always loads dark. To turn it on, read the docs' "starlight-theme"
+     choice (or the system setting) here and remove `hidden` from the nav toggle. -->
+<script is:inline>document.documentElement.dataset.theme='dark';</script>
 
 <link rel="icon" href={withBase('/favicon.ico')} sizes="32x32">
 <link rel="icon" href={withBase('/favicon.svg')} type="image/svg+xml">
