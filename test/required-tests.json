@@ -920,5 +920,10 @@
   "a rebind blocks payload and consent revoke cancels held server items",
   "owner can repair a damaged binding and revoke its consent",
   "a returned server ID can be reconciled after a held item is cancelled",
-  "server payload rechecks isolation after the hold"
+  "server payload rechecks isolation after the hold",
+  "antigravity parse normalizes SessionStart, PreInvocation, PreToolUse, PostToolUse and Stop camelCase payloads",
+  "antigravity parse accepts both tool name sets and payloads without cwd or hookEventName, and never throws",
+  "antigravity format prints injectSteps for context, a decision deny, and neutral replies of ask before a tool, an empty decision on Stop and an empty object otherwise",
+  "antigravity detect reads ANTIGRAVITY_AGENT and ANTIGRAVITY_CONVERSATION_ID, and a Gemini CLI shell stays gemini",
+  "a live config accepts exactly the Antigravity skills folder under .gemini/config and refuses its parents and siblings"
 ]
