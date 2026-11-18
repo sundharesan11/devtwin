@@ -1,11 +1,11 @@
 ---
 title: Preferences and templates
-description: Turn a correction into a preference that every Claude Code, Codex and Gemini CLI session reads, make your own routines, and keep your own structure for RCAs, reports and decision notes.
+description: Turn a correction into a preference that every Claude Code, Codex, Gemini CLI and Antigravity CLI session reads, make your own routines, and keep your own structure for RCAs, reports and decision notes.
 sidebar:
   label: Preferences and templates
 ---
 
-You tell an agent "use Playwright, not a manual browser". With devtwin, you say it once. The agent proposes the correction as a preference, you accept it, and every later Claude Code, Codex and Gemini CLI session reads it from your own instruction files.
+You tell an agent "use Playwright, not a manual browser". With devtwin, you say it once. The agent proposes the correction as a preference, you accept it, and every later Claude Code, Codex, Gemini CLI and Antigravity CLI session reads it from your own instruction files.
 
 ## How a preference reaches your agents
 
@@ -41,6 +41,9 @@ A session can propose at most three preferences, and one for each kind of correc
 | Claude Code | `~/.claude/devtwin.md`, a file devtwin owns, and one import line in a marker block in `~/.claude/CLAUDE.md` |
 | Codex | A marker block in `~/.codex/AGENTS.md` |
 | Gemini CLI | A marker block in `~/.gemini/GEMINI.md` |
+| Antigravity CLI | The same marker block in `~/.gemini/GEMINI.md` |
+
+Gemini CLI and Antigravity CLI read one file, so one block serves both. A plan for both agents lists the file once and names the other agent in `shared`. `instructions apply --remove` for one of them keeps the block while the other still uses the file; the action is `unchanged` with the reason `shared-file`. When it writes the block, the owner dialog names every agent that reads a planned file.
 
 Text outside `<!-- devtwin:begin -->` and `<!-- devtwin:end -->` stays byte for byte. A repository's own `AGENTS.md` or `CLAUDE.md` is never a target. In live mode, each file must be approved first with `live write-classes --instruction-target`; see [Live mode](/docs/guides/live-mode/).
 

@@ -42,7 +42,7 @@ Approve 12 setup changes
 - The order is fixed. One live config change runs first. It adds every hook target, launch agent and backup folder that the steps need, and keeps every path you approved before. Then come the skills, the consents, the jobs and `paths-confirm`. The hooks run last.
 - Before each step, the batch previews it again. A step that changed after your approval stops the batch with `DEVTWIN_STALE_VERSION`. The error lists the steps in `done` and `notRun`.
 - A consent shows its full rules in the dialog. When they do not fit with the other lines, the consent leaves the batch and the plan says why. Nothing is cut.
-- `hub-join`, `live set-kit`, `instructions apply` and `backup key export` keep their own dialog. Steps that need no approval, such as `profile`, are not in a batch.
+- `hub-join`, `live set-kit`, `live add-agent`, `instructions apply` and `backup key export` keep their own dialog. Steps that need no approval, such as `profile`, are not in a batch.
 - Each step that runs adds one audit entry with the batch ID. After the batch, devtwin rebuilds the lesson index and session summaries of every scope.
 
 ## Run the wizard
@@ -70,9 +70,9 @@ node "$KIT/bin/devtwin.mjs" setup apply --pilot "$LIVE_CONFIG" --step hook-verif
 | Step | What it does | Owner |
 | --- | --- | --- |
 | `live-folder` | Checks that the live config exists and that `init` has run. Only reads. | |
-| `skills-claude`, `skills-codex`, `skills-gemini` | Installs the bundled skills for that agent (`agents install`). Codex and Gemini CLI share one folder. A step for an agent that the live config leaves out is skipped. | Yes |
-| `write-classes-hooks` | Approves the hook settings file of each agent in the live config (`~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.gemini/settings.json`) as hook targets (`live write-classes --hook-target`). | Yes |
-| `hooks-claude`, `hooks-codex`, `hooks-gemini` | Adds devtwin's hook entries for that agent (`agents install --hooks`). | Yes |
+| `skills-claude`, `skills-codex`, `skills-gemini`, `skills-antigravity` | Installs the bundled skills for that agent (`agents install`). Codex and Gemini CLI share one folder. A step for an agent that the live config leaves out is skipped, with the reason "agent not in the live config". Add the agent with [`live add-agent`](/docs/reference/cli/#live-add-agent). | Yes |
+| `write-classes-hooks` | Approves the hook settings file of each agent in the live config (`~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.gemini/settings.json`, `~/.gemini/config/hooks.json`) as hook targets (`live write-classes --hook-target`). | Yes |
+| `hooks-claude`, `hooks-codex`, `hooks-gemini`, `hooks-antigravity` | Adds devtwin's hook entries for that agent (`agents install --hooks`). | Yes |
 | `hook-verify` | Writes the kit receipt that the hook trusts (`hook verify`). | |
 | `paths-confirm` | Records the kit and config paths, so the skills stop asking for them and the hook renews its receipt (`paths confirm`). | Yes |
 | `profile` | Writes your personal profile (`profile plan` and `profile apply`). | |

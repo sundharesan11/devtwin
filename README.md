@@ -8,7 +8,7 @@
 
 [Website](https://sundharesan11.github.io/devtwin/) · [Docs](https://sundharesan11.github.io/devtwin/docs/) · [Getting started](https://github.com/sundharesan11/devtwin/blob/main/docs/GETTING-STARTED.md) · [Roadmap](https://github.com/sundharesan11/devtwin/blob/main/docs/ROADMAP.md)
 
-Your agents can read any codebase. They can't read why it was built that way, the mistakes you never repeat, or where you stopped yesterday. devtwin keeps that knowledge on your disk and gives it to Claude Code, Codex and Gemini CLI when a session starts.
+Your agents can read any codebase. They can't read why it was built that way, the mistakes you never repeat, or where you stopped yesterday. devtwin keeps that knowledge on your disk and gives it to Claude Code, Codex, Gemini CLI and Antigravity CLI when a session starts.
 
 ## Why use it
 
@@ -47,7 +47,7 @@ Read [Architecture](https://github.com/sundharesan11/devtwin/blob/main/docs/ARCH
 
 An AI software factory connects agents, engineering workflows and delivery checks to move work from requirements to production.
 
-devtwin provides the context and learning layer. It gives Claude Code, Codex and Gemini CLI access to project decisions, constraints, preferences and recorded handoffs. Relevant lessons help later sessions reuse what earlier work taught you. With your consent, lessons can also reach your team's hub, repository or knowledge server.
+devtwin provides the context and learning layer. It gives Claude Code, Codex, Gemini CLI and Antigravity CLI access to project decisions, constraints, preferences and recorded handoffs. Relevant lessons help later sessions reuse what earlier work taught you. With your consent, lessons can also reach your team's hub, repository or knowledge server.
 
 For example, you record a pagination decision. Claude Code builds from that context and records a handoff. Codex reviews the change and finds a missing edge case. An agent records the lesson. With your consent, the team can reuse it when matching work comes up.
 

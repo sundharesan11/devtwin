@@ -97,11 +97,47 @@ LIVE_CONFIG="$HOME/.devtwin/live.json"
 
 11. If you set `DEVTWIN_KIT` in your shell profile, change it to the new `kitRoot`, with the owner's approval.
 
-12. In Codex, run `/hooks` and trust each changed devtwin entry.
+12. In Codex, run `/hooks` and trust each changed devtwin entry. Antigravity CLI has no such step.
 
 The devtwin hook denies `kit install --apply`, `live set-kit --apply` and `setup apply --all-pending` from an agent shell. An agent can show you the previews, but you run each apply.
 
 Until the batch runs, the hook lines and job files still name the old kit. The live config no longer pins that kit, so the kit gate refuses their live commands. `schedule status` shows those jobs as `outdated`.
+
+## Add an agent after an upgrade
+
+A release can add support for an agent, such as Antigravity CLI. The upgrade does not add that agent to your live config. `setup status` shows its skills and hooks steps as skipped, with the reason "agent not in the live config". Read [Roll back after you add an agent](#roll-back-after-you-add-an-agent) first. Then add the agent after step 10 of the upgrade:
+
+1. Preview the change:
+
+   ```sh
+   devtwin live add-agent --pilot "$LIVE_CONFIG" --agent antigravity
+   ```
+
+2. Apply the previewed fingerprint in your own terminal:
+
+   ```sh
+   devtwin live add-agent --pilot "$LIVE_CONFIG" --agent antigravity --apply --plan-fingerprint '<fingerprint>'
+   ```
+
+   The owner dialog "Add an agent to the live config" names the agent and its skills folder.
+
+3. Run one more setup batch, as in steps 8 and 9 of the upgrade. It approves the agent's hook file and installs its skills and hooks.
+
+4. Preview the instruction block:
+
+   ```sh
+   devtwin instructions plan --pilot "$LIVE_CONFIG"
+   ```
+
+   The plan shows the agent's instruction file as `blocked` when that file is not an approved instruction target. For Antigravity CLI the file is `~/.gemini/GEMINI.md`. Approve it with `live write-classes --instruction-target`, preview first. Give every instruction target that is already approved again, because the flag replaces the class. Then preview the instruction block again.
+
+5. Apply it in your own terminal:
+
+   ```sh
+   devtwin instructions apply --pilot "$LIVE_CONFIG" --plan-fingerprint '<fingerprint>'
+   ```
+
+`live add-agent` runs in the pinned kit. A kit from before the route answers with "Unknown command", so pin the new kit first, as step 7 of the upgrade shows. Each apply here is an owner action, and the devtwin hook denies it from an agent shell. [Add an agent to a live config](LIVE.md#add-an-agent-to-a-live-config) has the details.
 
 ## Roll back
 
@@ -136,6 +172,21 @@ Once the live config names a package kit, a kit from before 0.1.0-alpha.1 cannot
 The global command can be newer than the pinned kit. That is safe: it forwards live commands to the pinned kit. To make `devtwin --version` match, install the earlier version with `npm i -g devtwin@<earlier version>`.
 
 A kit folder that shows `bad` in `kit list` failed its digest or mode check. Do not pin it. devtwin never deletes a kit folder. The folders are read-only, so give the owner write bit back with `chmod -R u+w` before you remove one by hand. Remove a folder only when nothing points at it.
+
+### Roll back after you add an agent
+
+A kit works only with the agents it knows. A kit from before Antigravity CLI support refuses a live config that names `antigravity`. The error is `GATE_REQUIRED` with the field `live.skillDirs.antigravity`. The `live set-kit` preview in step 2 then stops, and the newer kit stays pinned.
+
+No command removes an agent from a live config. After `live add-agent`, roll back only to a kit that knows the agent. Add an agent only when you plan to keep a release that supports it.
+
+To stop devtwin for the agent, uninstall its hooks and its skills. Run each command as a preview first, then apply its fingerprint in your own terminal:
+
+```sh
+devtwin agents uninstall --hooks --pilot "$LIVE_CONFIG" --agent antigravity
+devtwin agents uninstall --pilot "$LIVE_CONFIG" --agent antigravity
+```
+
+Uninstall with a kit that knows the agent, before any move to another kit. An earlier kit refuses the agent's name, so it cannot remove those entries. It also treats a hook journal that names the agent as an incomplete run. The live config still names the agent after the uninstall.
 
 ## Move from a Git clone to a package kit
 

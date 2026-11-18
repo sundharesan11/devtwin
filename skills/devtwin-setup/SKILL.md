@@ -14,7 +14,7 @@ Conduct first-run setup through the setup steps. `setup status` lists the steps.
 
 To read project context, use `devtwin-resume`. To onboard a repository with the full candidate review, use `devtwin-onboard`.
 
-Some steps run an owner action: `skills-claude`, `skills-codex`, `skills-gemini`, `write-classes-hooks`, `hooks-claude`, `hooks-codex`, `hooks-gemini`, `paths-confirm`, `backup-folder`, the hub and consent steps and the scheduled job steps (`setup status` marks them `owner: true`). The hook denies owner-only devtwin commands from agent shells, including `setup apply` for these steps and every `setup apply --steps` or `--all-pending`; never try to work around it. Propose the owner steps as one batch, as step 5 shows, and tell the user it is one dialog for all of them. Give the user the exact `setup apply` command to run in their own terminal.
+Some steps run an owner action. They are `skills-claude`, `skills-codex`, `skills-gemini`, `skills-antigravity`, `write-classes-hooks`, `hooks-claude`, `hooks-codex`, `hooks-gemini`, `hooks-antigravity`, `paths-confirm`, `backup-folder`, the hub and consent steps and the scheduled job steps (`setup status` marks them `owner: true`). The hook denies owner-only devtwin commands from agent shells, including `setup apply` for these steps and every `setup apply --steps` or `--all-pending`; never try to work around it. Propose the owner steps as one batch, as step 5 shows, and tell the user it is one dialog for all of them. Give the user the exact `setup apply` command to run in their own terminal.
 
 ## Preconditions
 
@@ -78,8 +78,8 @@ The current profile, its free text, stack suggestions and the records they cite 
 
 6. Inputs per step:
 
-   - `skills-claude`, `skills-codex`, `skills-gemini`, `hooks-claude`, `hooks-codex`, `hooks-gemini`: no input. A step for an agent that the live config leaves out is skipped. After a Codex hook install, tell the user to open Codex, run `/hooks` and trust each devtwin entry.
-   - `write-classes-hooks`: no input. It approves the two hook settings files in the live config.
+   - `skills-claude`, `skills-codex`, `skills-gemini`, `skills-antigravity`, `hooks-claude`, `hooks-codex`, `hooks-gemini`, `hooks-antigravity`: no input. A step for an agent that the live config leaves out is skipped, with the reason "agent not in the live config". To add that agent, the user runs `live add-agent --agent <id>` in their own terminal. After a Codex hook install, tell the user to open Codex, run `/hooks` and trust each devtwin entry. Antigravity CLI has no such trust step.
+   - `write-classes-hooks`: no input. It approves the hook settings file of each agent in the live config.
    - `hook-verify`: no input. It writes the kit receipt in the store.
    - `paths-confirm`: no input. It records the kit and config paths, so skills stop asking for them. This is an owner step.
    - `backup-folder`: `--backup-target '<folder>'`, a folder inside the home and outside `~/.devtwin`. `job-backup` then installs the daily backup job. Both are owner steps.
@@ -167,7 +167,7 @@ The current profile, its free text, stack suggestions and the records they cite 
 
 - Stop and ask if the kit path or the pilot path fails any precondition.
 - Stop without creating anything if the pilot file is missing or `init` has not run.
-- Never run `init`, `live init`, `live add-repo`, `live set-kit` or `live write-classes`. Creating a pilot or changing the live config is the user's decision.
+- Never run `init`, `live init`, `live add-repo`, `live add-agent`, `live set-kit` or `live write-classes`. Creating a pilot or changing the live config is the user's decision.
 - Never run `setup apply` for an owner step or a batch (`--steps` or `--all-pending`), and never run the `devtwin setup` terminal loop. Give the command to the user.
 - Never run `setup apply` without explicit approval from the user in the session for the plan you showed last.
 - Never scan, open or read a repository to suggest a stack. Use only `profile suggest-stack`.
