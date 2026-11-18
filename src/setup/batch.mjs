@@ -32,8 +32,8 @@ import { displayKitId } from "../kit/identity.mjs";
 import { digest } from "../storage/canonical.mjs";
 import { requireOwnerApproval, fitsDialog, issueBatchGrant, revokeBatchGrant, BATCH_GRANT } from "../owner/dialog.mjs";
 import { UNSAFE_PATH_CHARS } from "../config/roots.mjs";
-import { stepById } from "./steps.mjs";
-import { adapter, AGENT_IDS } from "../agents/adapters/index.mjs";
+import { stepById, pluginTarget } from "./steps.mjs";
+import { adapter, AGENT_IDS, wholeFileHooks } from "../agents/adapters/index.mjs";
 
 // The apply order. A step's phase never changes with the selection. hook-verify is not an owner step: it is in a batch
 // because a config change ends the kit receipt the hook trusts, and a hook install in the same batch makes it needless.
@@ -51,6 +51,8 @@ export const SEPARATE = Object.freeze([
   Object.freeze({ command: "backup key export", reason: "it prints the backup key once; run it alone in your own terminal" })
 ]);
 const CLASSES = [["hookTargets", "hook-target", "Approve hook settings file "], ["backupTargets", "backup-target", "Approve backup folder "], ["launchAgents", "launch-agent", "Approve launch agent "]];
+// The dialog line of one new write-class path. A hook target that is an agent's plugin file is named as one.
+const classLine = (ctx, { cls, path }) => (cls === "hookTargets" && pluginTarget(ctx, path) ? "Approve plugin file " : CLASSES.find(([name]) => name === cls)[2]) + tilde(ctx, path);
 const list = (value) => value === undefined ? [] : Array.isArray(value) ? value : [value];
 const invalid = (message, field = "steps") => { throw new DevtwinError("INVALID_INPUT", message, { field }); };
 
@@ -126,6 +128,8 @@ async function linesFor(step, preview, ctx) {
   if (step.id.startsWith("hooks-")) {
     const action = preview.actions.find((a) => ["create", "update"].includes(a.status));
     if (!action) return { excluded: "the hook file cannot be changed: " + preview.actions.map((a) => a.status + (a.reason ? " " + a.reason : "")).join(", ") };
+    // A plugin file is written as a whole, so its line names the file and no event.
+    if (wholeFileHooks(action.agent)) return { lines: [(action.status === "update" ? "Rewrite the devtwin plugin file " : "Install the devtwin plugin file ") + t(action.path)] };
     const events = [...new Set(action.changes.filter((c) => c.op === "add").map((c) => c.event))];
     const replaces = action.changes.some((c) => c.op === "remove");
     return { lines: [(replaces ? "Replace devtwin hook entries in " : "Add devtwin hook entries to ") + t(action.path) + ": " + events.join(", ") + (adapter(action.agent).hooks.trustLine ? ". " + adapter(action.agent).hooks.trustLine : "")] };
@@ -231,7 +235,7 @@ export async function buildBatch(values, ctx) {
   if (configPreview) {
     const set = change.set;
     items.push({ id: "config", covers: configSteps.map((s) => s.id), preview: configPreview, fingerprint: configPreview.fingerprint,
-      lines: change.added.map((a) => CLASSES.find(([cls]) => cls === a.cls)[2] + tilde(ctx, a.path)),
+      lines: change.added.map((a) => classLine(ctx, a)),
       replan: async (c) => (await writeClasses()).run(writeClassValues(c, set), c),
       apply: async (c, fingerprint) => (await writeClasses()).run({ ...writeClassValues(c, set), apply: true, "plan-fingerprint": fingerprint }, c) });
   }

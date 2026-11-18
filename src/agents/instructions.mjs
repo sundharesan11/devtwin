@@ -7,12 +7,15 @@
 //   gemini  a marker block in ~/.gemini/GEMINI.md with the block itself
 //   antigravity  the same ~/.gemini/GEMINI.md: a file two agents name is planned and edited once, and a remove for one
 //           of them keeps the block while the other still uses the file
+//   opencode  ~/.config/opencode/devtwin.md, a devtwin-owned file with the block, and no import line in any file:
+//           the generated plugin gives the file to the model. devtwin never writes an OpenCode AGENTS.md
 // Every target must be an approved instructionTargets path. Text outside the markers stays byte for byte. A
 // repository's own instruction files are never a target: the paths come only from the agent home. The block is capped
 // at 1,200 characters; when the preferences do not fit, the oldest ones are left out with a warning.
 // instructions apply is an owner action: the hook denies it from agent shells, and it shows the owner dialog.
 // U25: activity review re-renders the block after its own dialog showed each new preference (applyReviewedPreferences).
-import { join } from "node:path";
+import { statSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { homedir } from "node:os";
 import { DevtwinError } from "../errors.mjs";
 import { agentDirsFor, assertInPilot, assertWritable } from "../config/pilot.mjs";
@@ -65,11 +68,14 @@ function homeFor(pilot, targetHome) {
   if (targetHome === homedir()) throw new DevtwinError("GATE_REQUIRED", "Real home refused");
   return agentDirsFor({ home: targetHome, env: {} });
 }
-// An adapter with instructions.owned keeps the block in devtwin.md and imports it from its instructions file; every
-// other adapter gets the block itself in its instructions file.
+// An adapter with instructions.owned keeps the block in devtwin.md and imports it from its instructions file. One with
+// instructions.mode "owned-only" (OpenCode) gets devtwin.md alone: nothing imports the file, so no second file is
+// planned, and the mode is read first so that it never reaches the import below. Every other adapter gets the block
+// itself in its instructions file.
 function targetsOf(dirs, agent) {
-  const file = join(dirs[agent], adapter(agent).instructions.file), owned = join(dirs[agent], OWNED_FILE);
-  if (!adapter(agent).instructions.owned) return [{ agent, role: "block", path: file, body: (block) => block }];
+  const { instructions } = adapter(agent), file = join(dirs[agent], instructions.file), owned = join(dirs[agent], OWNED_FILE);
+  if (instructions.mode === "owned-only") return [{ agent, role: "owned-file", path: owned, body: (block) => block }];
+  if (!instructions.owned) return [{ agent, role: "block", path: file, body: (block) => block }];
   return [{ agent, role: "owned-file", path: owned, body: (block) => block }, { agent, role: "import", path: file, body: () => "@" + owned }];
 }
 // One target per path. A path two agents name is planned once, under the first of them; also names the others. A file
@@ -99,13 +105,18 @@ async function activeUsers(pilot, dirs, path, { targetHome, agents, kitRoot }) {
   const hooked = rest.length ? (await planHooks(pilot, { targetHome, agents: rest, mode: "uninstall", kitRoot })).actions.filter((a) => a.status === "remove").map((a) => a.agent) : [];
   return peers.filter((id) => named.includes(id) || hooked.includes(id));
 }
-// Each target's status: create, update, unchanged, blocked (not an approved path) or conflict (unsafe file or
-// malformed markers). remove takes the block out of every target.
+const isFolder = (path) => { try { return statSync(path).isDirectory(); } catch { return false; } };
+// Each target's status: create, update, unchanged, blocked (not an approved path) or conflict (unsafe file,
+// malformed markers or a missing agent folder). remove takes the block out of every target.
 function analyze(roots, target, block, remove) {
   try { assertWritable(roots, [target.path], { writeClass: "instructionTargets" }); }
   catch (error) { return { status: "blocked", reason: error.code === "DEVTWIN_GATE_REQUIRED" || error.code === "DEVTWIN_PATH_UNSAFE" ? "not-approved" : error.code }; }
   let text;
   try { text = readOwnedText(target.path); } catch (error) { return { status: "conflict", reason: error.code }; }
+  // devtwin never creates an agent folder. An approved path in a folder that does not exist (OpenCode joins the live
+  // config with the shared skills folder alone) is refused here, before the dialog and before any write of the apply.
+  // A remove has nothing to take out and stays unchanged. The reason has the name the hook installer gives it.
+  if (text === null && !remove && !isFolder(dirname(target.path))) return { status: "conflict", reason: "agent-folder-missing" };
   let next;
   try { next = replaceMarkedBlock(text, remove ? null : target.body(block)); } catch (error) { return { status: "conflict", reason: error.code === "DEVTWIN_CONFLICT" ? "markers" : error.code }; }
   if (text !== null && next === text) return { status: "unchanged", before: hashText(text) };

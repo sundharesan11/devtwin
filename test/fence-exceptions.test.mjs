@@ -227,6 +227,38 @@ test("write classes refuse unknown classes, duplicates and targets outside the a
   await writeFile(path, JSON.stringify({ ...f.obj, live, writeClasses: { hookTargets: [f.paths.settings] } }), { mode: 0o600 });
   await assert.rejects(loadPilot(path, { ...gate, env }), refused(undefined));
 });
+test("the hookTargets class accepts the OpenCode plugin file and no other path in the OpenCode folder", async (t) => {
+  const f = await liveFixture(t), gate = { ...f.context, liveGate: { approval: false } }, dir = join(f.home, ".config/opencode"), plugin = join(dir, "plugins/devtwin.js");
+  await mkdir(join(dir, "plugins"), { recursive: true });
+  // The one file sits inside the protected OpenCode folder by design, as a settings file sits inside ~/.claude.
+  assert.deepEqual((await loadPilot(await f.write({ hookTargets: [f.paths.settings, plugin] }), gate)).writeClasses.hookTargets, [f.paths.settings, plugin]);
+  const roots = await f.roots({ hookTargets: [plugin] });
+  assert.doesNotThrow(() => assertWritable(roots, [plugin], { writeClass: "hookTargets" }));
+  // The approval is for that path and that class: no other class, no sibling, not the folder, not the OpenCode config.
+  for (const [path, writeClass] of [[plugin, "instructionTargets"], [plugin, undefined], [join(dir, "plugins/other.js"), "hookTargets"], [join(dir, "plugins"), "hookTargets"], [join(dir, "opencode.json"), "hookTargets"], [join(dir, "devtwin.md"), "hookTargets"]]) {
+    await assert.rejects(writable(roots, [path], { writeClass }), refused("destination"), path + " " + writeClass);
+  }
+  // No other path under the folder can be approved as a hook target, and the plugin path is no instruction target.
+  for (const rel of ["plugins/other.js", "plugins/devtwin.mjs", "plugins/devtwin.js.bak", "plugins/nested/devtwin.js", "plugins", "plugin/devtwin.js", "devtwin.js", "opencode.json", "AGENTS.md"]) {
+    await assert.rejects(loadPilot(await f.write({ hookTargets: [join(dir, rel)] }), gate), refused("writeClasses.hookTargets"), rel);
+  }
+  await assert.rejects(loadPilot(await f.write({ instructionTargets: [plugin] }), gate), refused("writeClasses.instructionTargets"));
+  // The variables that move the folder for OpenCode move no approval, and the path must be inside the home.
+  const moved = { OPENCODE_CONFIG_DIR: join(f.home, "moved"), XDG_CONFIG_HOME: join(f.home, "xdg") };
+  for (const path of [join(f.home, "moved/plugins/devtwin.js"), join(f.home, "xdg/opencode/plugins/devtwin.js"), join(f.sb, "other/.config/opencode/plugins/devtwin.js")]) {
+    await assert.rejects(loadPilot(await f.write({ hookTargets: [path] }), { ...gate, env: moved }), refused("writeClasses.hookTargets"), path);
+  }
+  assert.deepEqual((await loadPilot(await f.write({ hookTargets: [plugin] }), { ...gate, env: moved })).writeClasses.hookTargets, [plugin]);
+  // A plugin path that is a folder or a link is refused, as for every file target.
+  await mkdir(plugin);
+  await assert.rejects(loadPilot(await f.write({ hookTargets: [plugin] }), gate), unsafe);
+  await rm(plugin, { recursive: true });
+  await writeFile(join(f.sb, "elsewhere.js"), "export default {};\n");
+  await symlink(join(f.sb, "elsewhere.js"), plugin);
+  await assert.rejects(loadPilot(await f.write({ hookTargets: [plugin] }), gate), unsafe);
+  await assert.rejects(writable(roots, [plugin], { writeClass: "hookTargets" }), unsafe);
+  assert.equal(await readFile(join(f.sb, "elsewhere.js"), "utf8"), "export default {};\n");
+});
 test("disposable pilot write classes stay exact and inside a listed agent home", async (t) => {
   const p = await makePilot(t), [home] = p.agentHomes, settings = join(home, ".claude/settings.json"), hub = join(p.pilot.pilotRoot, "hubs");
   const opts = { home: p.fakeHome, kitRoot: "/nonexistent-kit", env: {} };

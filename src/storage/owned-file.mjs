@@ -1,6 +1,6 @@
-import { constants, openSync, closeSync, fstatSync, readSync, chmodSync } from "node:fs";
+import { constants, openSync, closeSync, fstatSync, readSync, chmodSync, unlinkSync } from "node:fs";
 import { createHash } from "node:crypto";
-import { join } from "node:path";
+import { join, dirname } from "node:path";
 import { assertWritable } from "../config/pilot.mjs";
 import { ensurePrivatePath, writeNewFile, fsyncDir, atomicReplace } from "./fsx.mjs";
 import { canonicalJson } from "./canonical.mjs";
@@ -9,6 +9,7 @@ import { DevtwinError } from "../errors.mjs";
 // Edits to files the developer owns: only devtwin's marker block or devtwin's own JSON entries change.
 export const MARKERS = Object.freeze({ begin: "<!-- devtwin:begin -->", end: "<!-- devtwin:end -->" });
 const OWNED_LIMIT = 262144;
+const SHA256 = /^sha256:[0-9a-f]{64}$/;
 const UNSAFE_KEYS = ["__proto__", "constructor", "prototype"];
 const count = (text, part) => text.split(part).length - 1;
 const isObject = (value) => Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -88,8 +89,12 @@ export function readOwnedText(path, limit = OWNED_LIMIT) {
 // Edits one approved write-class file. edit(text) gets the current text, or null when the file is absent, and
 // returns the new text. Before the replace, the exact prior bytes go to stateRoot/runs/<runId>/backups/ with a
 // record naming the path; an absent file gets a record only. A run never overwrites a backup it already wrote.
-// faults.beforeReplace is a test seam between the backup and the replace.
-export async function editOwnedFile(roots, { path, writeClass, runId, edit, limit = OWNED_LIMIT }, { faults = {} } = {}) {
+// A remove: edit returns null. Only the hookTargets class has a file that is devtwin's as a whole (the OpenCode plugin
+// file), so only that class may remove one, and only when the caller names in priorHash ("sha256:<hex>") the bytes it
+// means and the file holds exactly them. The backup, its record and the last check are those of an edit; then the
+// file is unlinked. Every other result that is not a string fails, as before.
+// faults.beforeReplace is a test seam between the backup and the replace or the unlink.
+export async function editOwnedFile(roots, { path, writeClass, runId, edit, priorHash, limit = OWNED_LIMIT }, { faults = {} } = {}) {
   if (typeof runId !== "string" || !RUN_ID.test(runId)) throw new DevtwinError("INVALID_ID", "Invalid run ID");
   if (typeof edit !== "function") throw new DevtwinError("INVALID_INPUT", "Invalid owned file edit");
   const name = createHash("sha256").update(String(path)).digest("hex");
@@ -97,19 +102,25 @@ export async function editOwnedFile(roots, { path, writeClass, runId, edit, limi
   assertWritable(roots, [path], { writeClass });
   assertWritable(roots, [backup, record]);
   const prior = readOwned(path, limit), text = prior ? decode(prior.bytes) : null;
-  const next = edit(text);
-  if (typeof next !== "string" || Buffer.byteLength(next) > limit) throw new DevtwinError("INVALID_INPUT", "Invalid owned file content");
+  const next = edit(text), remove = next === null && writeClass === "hookTargets" && typeof priorHash === "string" && SHA256.test(priorHash);
+  if (!remove && (typeof next !== "string" || Buffer.byteLength(next) > limit)) throw new DevtwinError("INVALID_INPUT", "Invalid owned file content");
+  const sum = prior ? "sha256:" + createHash("sha256").update(prior.bytes).digest("hex") : null;
+  if (remove && sum !== priorHash) throw new DevtwinError("INTEGRITY", "Owned file changed");
   if (prior && next === text) return { changed: false, path, backup: null };
   ensurePrivatePath(roots.stateRoot, ["runs", runId, "backups"]);
   assertWritable(roots, [backup, record]);
   if (prior) await writeNewFile(backup, prior.bytes);
-  const sum = prior ? "sha256:" + createHash("sha256").update(prior.bytes).digest("hex") : null;
   await writeNewFile(record, JSON.stringify({ schemaVersion: 1, path, writeClass, ...(prior ? { sha256: sum, size: prior.bytes.length } : { absent: true }) }) + "\n");
   fsyncDir(dir);
   await faults.beforeReplace?.();
   const current = readOwned(path, limit);
   if (prior ? !current || current.dev !== prior.dev || current.ino !== prior.ino || !current.bytes.equals(prior.bytes) : current) throw new DevtwinError("INTEGRITY", "Owned file changed");
   assertWritable(roots, [path], { writeClass });
+  if (remove) {
+    unlinkSync(path);
+    fsyncDir(dirname(path));
+    return { changed: true, removed: true, path, backup, record };
+  }
   await atomicReplace(path, next);
   // The replacement is written 0600; an existing file keeps the developer's own mode.
   if (prior) chmodSync(path, prior.mode);
