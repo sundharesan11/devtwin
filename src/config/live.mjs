@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { DevtwinError } from "../errors.mjs";
 import { checkLiveConfig, loadPilot, rootsFromPilot, recordApprovedDigest, approvedDigestPath, skillDirsFor, WRITE_CLASSES, STACK_WATCH_MAX_REQUESTS, APPROVAL_MODES } from "./pilot.mjs";
 import { canonicalJson } from "../storage/canonical.mjs";
-import { AGENT_IDS } from "../agents/adapters/index.mjs";
+import { AGENT_IDS, adapter } from "../agents/adapters/index.mjs";
 import { ensureRoots, validateRoot } from "./roots.mjs";
 import { info, checkNode, ensurePrivateDir, writeNewFile, atomicReplace, fsyncDir } from "../storage/fsx.mjs";
 import { finalizePlan, assertFingerprint } from "../storage/plan.mjs";
@@ -143,6 +143,18 @@ const addRepo = (repo) => (before) => {
   const repos = sorted([...before.repos, repo]);
   return { after: { ...before, repos }, details: { repo, repos: { from: before.repos, to: repos } } };
 };
+// Adds one agent to an approved config: live.skillDirs gains the agent's own skills folder for the config's home and
+// this environment, which is the value validateLive expects. The keys keep the order live init writes (sorted). The
+// folder must already be a real directory: checkLiveConfig refuses the new config otherwise.
+const addAgent = (agent, ctx) => (before) => {
+  if (!AGENTS.includes(agent) || Object.hasOwn(before.live.skillDirs, agent)) invalid("agent");
+  const skillDir = skillDirsFor({ home: before.live.home, env: ctx.env ?? process.env })[agent];
+  const skillDirs = Object.fromEntries(sorted([...Object.keys(before.live.skillDirs), agent]).map((id) => [id, id === agent ? skillDir : before.live.skillDirs[id]]));
+  return { after: { ...before, live: { ...before.live, skillDirs } }, details: { agent, skillDir, skillDirs: { from: before.live.skillDirs, to: skillDirs } } };
+};
+// The owner dialog names the agent and the one folder that devtwin may write in after the change.
+const agentDialog = ({ agent, skillDir }) => ({ title: "Add an agent to the live config", body: ["Agent: " + adapter(agent).name + " (" + agent + ")", "Skills folder: " + skillDir, "",
+  "devtwin may then write devtwin-* entries in this folder. This change installs nothing: the next setup batch installs the skills and hooks for this agent, after its own approval."].join("\n") });
 // U45: --commit <sha> names a Git kit and --kit <version>+<64 hex> a package kit; exactly one of the two.
 function requestedKit(input) {
   if ((input.commit === undefined) === (input.kit === undefined)) invalid("kit");
@@ -219,6 +231,15 @@ const setApproval = (mode) => (before) => {
 const preview = async (promise) => ({ preview: true, ...(await promise) });
 export const planLiveAddRepo = (input, ctx) => preview(planChange("live-add-repo", input, ctx, addRepo(input.repo)).then((r) => r.plan));
 export const applyLiveAddRepo = (input, ctx, options) => applyChange("live-add-repo", input, ctx, addRepo(input.repo), undefined, options);
+export const planLiveAddAgent = (input, ctx) => preview(planChange("live-add-agent", input, ctx, addAgent(input.agent, ctx)).then((r) => r.plan));
+// The apply shows the owner dialog before the change is approved, as live set-kit does. It passes no fingerprint to
+// the dialog, so a setup batch grant can never stand for it: the route is never part of a batch.
+export async function applyLiveAddAgent(input, ctx, options) {
+  const { pilot, plan } = await planChange("live-add-agent", input, ctx, addAgent(input.agent, ctx));
+  assertFingerprint(plan, input.fingerprint);
+  await (await import("../owner/dialog.mjs")).requireOwnerApproval({ ...ctx, pilot }, agentDialog(plan));
+  return applyChange("live-add-agent", input, ctx, addAgent(input.agent, ctx), undefined, options);
+}
 export const planLiveSetKit = (input, ctx) => preview(planChange("live-set-kit", input, ctx, ...setKit(input, ctx)).then((r) => r.plan));
 // Upgrade fix: after the kit change, the new kit rebuilds the derived state (lesson indexes and session summaries), so
 // a store that an older kit wrote works with the hook at once.

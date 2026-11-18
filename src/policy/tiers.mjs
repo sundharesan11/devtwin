@@ -39,7 +39,7 @@ const TABLE = {
   "skill-sources package-review": A, "skill-sources content-approve": A, "skill-sources local-plan": R, "skill-sources local-approve": A,
   "skill-sources local-apply": A, "skill-sources local-status": R,
   doctor: R, init: A, "scope add": A,
-  "live init": ASK, "live add-repo": ASK, "live set-kit": ASK, "live write-classes": ASK, "live stack-watch": ASK, "live migrate": ASK,
+  "live init": ASK, "live add-repo": ASK, "live add-agent": ASK, "live set-kit": ASK, "live write-classes": ASK, "live stack-watch": ASK, "live migrate": ASK,
   // U26 (KTD34): letting a terminal answer the owner prompt weakens it, so the switch is always ask.
   "live approval": ASK,
   "record add": RECORD_WRITE, "record supersede": { ...RECORD_WRITE, "replaces-confirmed": DIALOG, "replaces-disputed": DIALOG }, "record propose": A, "record publish": ASK,

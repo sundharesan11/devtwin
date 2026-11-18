@@ -411,6 +411,7 @@
   "test/lesson-match.test.mjs",
   "test/lesson-supersede.test.mjs",
   "test/lessons.test.mjs",
+  "test/live-add-agent.test.mjs",
   "test/live-commands.test.mjs",
   "test/live-config.test.mjs",
   "test/live-install.test.mjs",
