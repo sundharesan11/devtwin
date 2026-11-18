@@ -350,6 +350,7 @@
   "test/agent-scenarios.test.mjs",
   "test/agents.test.mjs",
   "test/antigravity-adapter.test.mjs",
+  "test/antigravity-hooks-install.test.mjs",
   "test/audit.test.mjs",
   "test/auth-hubs.test.mjs",
   "test/backup.test.mjs",

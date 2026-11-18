@@ -925,5 +925,13 @@
   "antigravity parse accepts both tool name sets and payloads without cwd or hookEventName, and never throws",
   "antigravity format prints injectSteps for context, a decision deny, and neutral replies of ask before a tool, an empty decision on Stop and an empty object otherwise",
   "antigravity detect reads ANTIGRAVITY_AGENT and ANTIGRAVITY_CONVERSATION_ID, and a Gemini CLI shell stays gemini",
-  "a live config accepts exactly the Antigravity skills folder under .gemini/config and refuses its parents and siblings"
+  "a live config accepts exactly the Antigravity skills folder under .gemini/config and refuses its parents and siblings",
+  "antigravity hook entries are flat handlers for lifecycle events and matcher groups for tool events",
+  "antigravity hooks install under the devtwin name in hooks.json, keep another named hook and its bytes, and are idempotent",
+  "antigravity hooks uninstall removes only devtwin's handlers, drops the empty devtwin key and keeps an enabled key",
+  "antigravity hooks status reports an edited handler as modified, a missing event as partial and an earlier kit path as outdated",
+  "antigravity hook inventory and rollback check read the devtwin container",
+  "antigravity hooks refuse a devtwin key that is not an object and a missing agent folder",
+  "a top-level command in a Claude Code, Codex or Gemini CLI hook entry is not read as a handler",
+  "antigravity hooks treat a hand-written copy of devtwin's handler as foreign and keep a devtwin-like handler of another pilot"
 ]

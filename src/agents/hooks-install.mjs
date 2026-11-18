@@ -17,10 +17,14 @@ import { SCOPE_ID } from "../identity/ids.mjs";
 import { adapter, AGENT_IDS, LISTED } from "./adapters/index.mjs";
 export { CODEX_TRUST_NOTE } from "./adapters/codex.mjs";
 // U8: devtwin's hook entries in the agent settings files (KTD6, KTD7, KTD9). The only files are the approved
-// hookTargets, one per agent adapter (src/agents/adapters): <claudeDir>/settings.json, ~/.codex/hooks.json and
-// ~/.gemini/settings.json. Each uses the shape
+// hookTargets, one per agent adapter (src/agents/adapters): <claudeDir>/settings.json, ~/.codex/hooks.json,
+// ~/.gemini/settings.json and ~/.gemini/config/hooks.json. The first three use the shape
 // { "hooks": { "<Event>": [ { "matcher"?: "<regex>", "hooks": [ { "type": "command", "command": "...", "timeout": 10 } ] } ] } },
 // and the adapter builds the entry: Gemini CLI adds a name and counts the timeout in milliseconds.
+// The Antigravity CLI file is keyed by hook name, so its event lists sit under the adapter's hooks.container:
+// { "devtwin": { "<Event>": [ ... ], "enabled"?: false }, "<another name>": { ... } }. There a lifecycle event's entry is
+// the handler itself, { "type": "command", "command": "...", "timeout": 10 }, and a tool event's entry is the group
+// above. devtwin reads and changes its own container only; an object under another name is never read.
 // An entry is devtwin's only when a completed hook journal of this config wrote it and each of its commands names
 // this pilot. Every other entry, including one that looks like devtwin's, is the developer's and is never changed.
 export const HOOK_KIND = "hook-bundled";
@@ -42,8 +46,14 @@ const escapeRe = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 // The hook line. It names the kit clone and the pilot only, so a new kit commit in the same clone keeps it byte-identical.
 export const hookCommand = ({ kitRoot, pilotPath, event, agent }) => 'node "' + kitRoot + '/bin/devtwin.mjs" hook --event ' + event + " --agent " + agent + ' --pilot "' + pilotPath + '"';
 const shapeFor = (pilotPath, agent = "[a-z]+") => new RegExp('^node "/[^"$`\\\\\\n\\r]+/bin/devtwin\\.mjs" hook --event [a-z-]+ --agent ' + agent + ' --pilot "' + escapeRe(pilotPath) + '"$');
-const commandsOf = (entry) => isObject(entry) && Array.isArray(entry.hooks) ? entry.hooks.filter(isObject).map((h) => h.command).filter((c) => typeof c === "string") : [];
-const devtwinLike = (entry) => commandsOf(entry).some((c) => /devtwin/i.test(c) && /\bhook\b/.test(c));
+// The top-level key of the hook file that holds this agent's event lists.
+const containerOf = (agent) => adapter(agent).hooks.container ?? "hooks";
+// True for an agent whose hook file is keyed by hook name: only there can an entry be the handler itself.
+const flatOf = (agent) => adapter(agent).hooks.container !== undefined;
+// An entry's commands: each handler's command in a group and, when flat is set, the entry's own command. A Claude
+// Code, Codex or Gemini CLI entry is always a group, so a top-level command there is no handler and is not read.
+const commandsOf = (entry, flat) => isObject(entry) ? [flat ? entry.command : null, ...(Array.isArray(entry.hooks) ? entry.hooks.filter(isObject).map((h) => h.command) : [])].filter((c) => typeof c === "string") : [];
+const devtwinLike = (entry, flat) => commandsOf(entry, flat).some((c) => /devtwin/i.test(c) && /\bhook\b/.test(c));
 // The kit and pilot paths the hook line names. In live mode the kit is the live config's pinned clone.
 export function hookContext(pilot, kitRoot) {
   const context = { pilotPath: realpathSync(pilot.path), kitRoot: pilot.live ? pilot.live.kitRoot : realpathSync(kitRoot ?? KIT) };
@@ -91,7 +101,7 @@ function ledger(pilot, journals) {
     for (const i of journal.completed) {
       const e = journal.intended[i];
       if (!e) continue;
-      for (const [event, list] of Object.entries(e.entries)) for (const entry of Array.isArray(list) ? list : []) { entries.add(key(e.path, event, entry)); for (const c of commandsOf(entry)) commands.add(c); }
+      for (const [event, list] of Object.entries(e.entries)) for (const entry of Array.isArray(list) ? list : []) { entries.add(key(e.path, event, entry)); for (const c of commandsOf(entry, flatOf(e.agent))) commands.add(c); }
     }
   }
   return { entries, commands };
@@ -102,19 +112,20 @@ function ledger(pilot, journals) {
 function analyze(text, { agent, path, owned, expected, context }) {
   let root;
   try { root = text === null ? {} : JSON.parse(text); } catch { return { conflict: "invalid-json" }; }
-  if (!isObject(root) || (root.hooks !== undefined && !isObject(root.hooks))) return { conflict: "unexpected-shape" };
-  const shape = shapeFor(context.pilotPath, agent), ours = new Set(Object.values(expected).flat().flatMap(commandsOf));
+  const box = containerOf(agent), flat = flatOf(agent);
+  if (!isObject(root) || (root[box] !== undefined && !isObject(root[box]))) return { conflict: "unexpected-shape" };
+  const shape = shapeFor(context.pilotPath, agent), ours = new Set(Object.values(expected).flat().flatMap((entry) => commandsOf(entry, flat)));
   const events = [], foreign = [];
   for (const [name] of HOOK_EVENTS[agent]) {
-    const list = Object.hasOwn(root.hooks ?? {}, name) ? root.hooks[name] : [];
+    const list = Object.hasOwn(root[box] ?? {}, name) ? root[box][name] : [];
     if (!Array.isArray(list)) return { conflict: "unexpected-shape" };
     const mine = [], marks = new Set();
     list.forEach((entry, index) => {
-      const commands = commandsOf(entry);
+      const commands = commandsOf(entry, flat);
       if (owned.entries.has(key(path, name, entry)) && commands.length && commands.every((c) => shape.test(c))) mine.push(entry);
       else if (canonicalJson(entry) === canonicalJson(expected[name][0])) marks.add("foreign-entry");
       else if (commands.some((c) => ours.has(c) || owned.commands.has(c))) marks.add("modified");
-      else if (devtwinLike(entry)) foreign.push({ event: name, index, reason: "devtwin-like-entry" });
+      else if (devtwinLike(entry, flat)) foreign.push({ event: name, index, reason: "devtwin-like-entry" });
     });
     const status = marks.has("modified") ? "modified" : marks.has("foreign-entry") ? "foreign-entry" : !mine.length ? "missing" : canonicalJson(mine) === canonicalJson(expected[name]) ? "installed" : "outdated";
     events.push({ event: name, status, mine });
@@ -126,23 +137,25 @@ function serialize(root, text) {
   return JSON.stringify(root, null, indent) + (text && !text.endsWith("\n") ? "" : "\n");
 }
 // The new file text: devtwin's entries replaced by the expected ones (install) or removed (uninstall). Every other
-// entry stays in place. Uninstall also drops an event list, and then the hooks object, that it left empty.
+// entry stays in place. Uninstall also drops an event list that it left empty, and then the container when no key is
+// left in it. A key devtwin did not write, such as "enabled", keeps the container.
 function rewrite(text, { agent, path, owned, expected, mode }) {
+  const box = containerOf(agent);
   let out = text, emptied = [];
   for (const [name] of HOOK_EVENTS[agent]) {
     const fresh = mode === "install" ? structuredClone(expected[name]) : [];
     const mine = (entry) => owned.entries.has(key(path, name, entry));
     if (mode === "uninstall") {
-      const list = out === null ? [] : JSON.parse(out).hooks?.[name];
+      const list = out === null ? [] : JSON.parse(out)[box]?.[name];
       if (!Array.isArray(list) || !list.some(mine)) continue;
       emptied.push(name);
     }
-    out = replaceOwnedEntries(out, { path: ["hooks", name], owns: (entry) => fresh.includes(entry) || mine(entry), entries: fresh });
+    out = replaceOwnedEntries(out, { path: [box, name], owns: (entry) => fresh.includes(entry) || mine(entry), entries: fresh });
   }
   if (mode === "uninstall" && emptied.length) {
     const root = JSON.parse(out);
-    for (const name of emptied) if (Array.isArray(root.hooks[name]) && !root.hooks[name].length) delete root.hooks[name];
-    if (!Object.keys(root.hooks).length) delete root.hooks;
+    for (const name of emptied) if (Array.isArray(root[box][name]) && !root[box][name].length) delete root[box][name];
+    if (!Object.keys(root[box]).length) delete root[box];
     out = serialize(root, text);
   }
   return out;
@@ -188,14 +201,14 @@ export async function planHooks(pilot, { targetHome, agents, mode = "install", k
 // The pre-apply inventory of one hook target. Devtwin rows are entries whose commands all name this pilot; foreign
 // rows keep only a hash of the entry, so the store holds no copy of the developer's own commands.
 export function inventoryHookFile(agent, path, pilotPath) {
-  const read = readTarget(path), shape = shapeFor(pilotPath);
+  const read = readTarget(path), shape = shapeFor(pilotPath), box = containerOf(agent), flat = flatOf(agent);
   if (read.error) return { agent, path, existed: true, unreadable: true, sha256: null, devtwin: [], foreign: [] };
   if (read.text === null) return { agent, path, existed: false, sha256: null, devtwin: [], foreign: [] };
   const row = { agent, path, existed: true, sha256: hashText(read.text), devtwin: [], foreign: [] };
   let root;
   try { root = JSON.parse(read.text); } catch { return { ...row, invalid: true }; }
-  for (const [event, list] of Object.entries(isObject(root?.hooks) ? root.hooks : {})) for (const entry of Array.isArray(list) ? list : []) {
-    const commands = commandsOf(entry);
+  for (const [event, list] of Object.entries(isObject(root?.[box]) ? root[box] : {})) for (const entry of Array.isArray(list) ? list : []) {
+    const commands = commandsOf(entry, flat);
     if (commands.length && commands.every((c) => shape.test(c))) row.devtwin.push({ event, entry });
     else row.foreign.push({ event, sha256: sha256(Buffer.from(canonicalJson(entry ?? null))) });
   }
