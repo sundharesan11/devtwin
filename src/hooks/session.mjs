@@ -1,10 +1,13 @@
 import { constants, closeSync, fstatSync, openSync, readdirSync, renameSync, unlinkSync, writeSync } from "node:fs";
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import { createHash } from "node:crypto";
+import { SCOPE_ID } from "../identity/ids.mjs";
 import { readPrivateJson, readPrivateText, ensurePrivatePath, atomicReplace, checkNode, info } from "../storage/fsx.mjs";
 // U7: per-session hook state and the budget meter (KTD17, KTD22, KTD23). A session is one agent session ID. State is
 // one small file per session, written by atomic replace and with no pilot lock. Two hook calls in the same session at
-// the same time can both read the old state; the later write wins, and a lesson can then arrive twice.
+// the same time can both read the old state; the later write wins, and a lesson can then arrive twice. A held lesson
+// (deferred lessons, below) was not printed, so the later write can drop it: runHook in src/hooks/commands.mjs holds
+// it again when it sees that, and one that is still lost is delayed to the next tool call that matches it.
 const SESSION_BYTES = 65536, MAX_DELIVERED = 512;
 const LOG_ROTATE_BYTES = 4 << 20, LOG_READ_BYTES = 8 << 20;
 const SESSION_MAX_AGE_MS = 14 * 24 * 3600 * 1000, TEMP_MAX_AGE_MS = 3600 * 1000;
@@ -33,7 +36,15 @@ export async function writeNoteState(stateRoot, key, state, now) {
   await atomicReplace(noteStatePath(stateRoot, key), JSON.stringify({ ...state, areas: state.areas.slice(-MAX_NOTE_AREAS), reported: state.reported.slice(-MAX_REPORTED), updatedAt: now.toISOString() }) + "\n");
 }
 const fresh = (agent) => ({ schemaVersion: 1, agent, delivered: [], lines: 0, overflowed: false });
-const valid = (s, agent) => s?.schemaVersion === 1 && s.agent === agent && Array.isArray(s.delivered) && s.delivered.length <= MAX_DELIVERED && s.delivered.every((id) => typeof id === "string") && Number.isInteger(s.lines) && s.lines >= 0 && typeof s.overflowed === "boolean";
+// Deferred lessons (deferred in src/hooks/commands.mjs): pending lists at most four held lessons as { id, scope, root },
+// and pendingMore is the count for one overflow line as { scope, root, count }. Both are optional, so a session file
+// from an earlier kit still loads. Any other shape is a damaged file.
+const MAX_PENDING = 4, MAX_ID = 128, MAX_ROOT = 4096;
+const text = (value, max) => typeof value === "string" && value.length > 0 && value.length <= max;
+const place = (e) => e !== null && typeof e === "object" && typeof e.scope === "string" && SCOPE_ID.test(e.scope) && text(e.root, MAX_ROOT) && isAbsolute(e.root);
+const validHeld = (s) => (s.pending === undefined || (Array.isArray(s.pending) && s.pending.length <= MAX_PENDING && s.pending.every((e) => place(e) && text(e.id, MAX_ID))))
+  && (s.pendingMore === undefined || (place(s.pendingMore) && Number.isSafeInteger(s.pendingMore.count) && s.pendingMore.count >= 1));
+const valid = (s, agent) => s?.schemaVersion === 1 && s.agent === agent && Array.isArray(s.delivered) && s.delivered.length <= MAX_DELIVERED && s.delivered.every((id) => typeof id === "string") && Number.isInteger(s.lines) && s.lines >= 0 && typeof s.overflowed === "boolean" && validHeld(s);
 // The session state, a fresh state when none exists, or { corrupt: true } for a damaged file (such as one cut short
 // when a run was killed). The caller removes a corrupt file and emits nothing for that event.
 export async function readSession(stateRoot, agent, key) {
