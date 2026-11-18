@@ -179,7 +179,7 @@ sample-dev on feat/retry touching src/billing, src/payments
 - **Expiry.** A note expires after 72 hours. Each `hub sync` deletes your own expired notes.
 - **Consent.** Notes leave your machine without a per-item yes, under the note consent you gave at `hub join`. Lessons do so only under a `hub-publish` consent.
 
-When an agent's tool call touches the area of a colleague's active note, the hook adds one fenced block that names the colleague and the note. A session gets each note once and at most two note reports. Your own notes are never reported to you.
+When an agent's tool call touches the area of a colleague's active note, the hook adds one fenced block that names the colleague and the note. A session gets each note once and at most two note reports. Your own notes are never reported to you. An Antigravity CLI session gets no note report: that agent reads no added context on a tool call, and devtwin does not hold a report for a later model call. Its edits still post your own note.
 
 ```sh
 node "$KIT/bin/devtwin.mjs" note list --pilot "$LIVE_CONFIG" --scope example

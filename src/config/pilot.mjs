@@ -18,7 +18,10 @@ const keys = ["schemaVersion", "pilotRoot", ...members, "agentHomes", "repos", "
 // U43 (KTD2): a Git kit has kitCommit; a package kit has kitVersion and kitDigest instead.
 const liveKeys = ["configId", "home", "skillDirs", "kitRoot", "kitCommit", "kitVersion", "kitDigest"];
 // Skill folders sit inside these protected homes; only the exact named folder is carved out, never the home.
-const SKILL_PARENTS = ["real-claude-home", "real-agents-home", "CLAUDE_CONFIG_DIR"];
+// real-gemini-home holds the Antigravity CLI folder, ~/.gemini/config/skills. carved (below) opens that home only for
+// the folder the field's own adapter declares under the home, whatever the environment says. So CLAUDE_CONFIG_DIR
+// cannot move another agent's folder into ~/.gemini, and no other path there becomes a skills folder.
+const SKILL_PARENTS = ["real-claude-home", "real-agents-home", "real-gemini-home", "CLAUDE_CONFIG_DIR"];
 // Write classes are the reviewed fence exceptions outside the store. Each lists exact paths; the folder classes
 // (hubRoot, and U24's backupTargets for backup archives and restores) list folders.
 // U30 (KTD29): repoLearnings lists exact bound repository roots that may get learning branches. devtwin writes there
@@ -149,7 +152,10 @@ function validateLive(pilot, context) {
   for (const forbidden of pilot.forbidden) if (touches(live.kitRoot, forbidden)) fail("live.kitRoot");
   return skills.map(([field, path]) => [field, path]);
 }
-const carved = (field, path, entry) => field.startsWith("live.skillDirs.") && SKILL_PARENTS.includes(entry.label) && comparable(path) !== comparable(entry.path) && isWithin(comparable(path), comparable(entry.path));
+// The folder the field's adapter declares under the home that holds entry.path. It ignores the environment.
+const declared = (field, path, entry) => AGENT_IDS.some((id) => field === "live.skillDirs." + id && comparable(path) === comparable(join(dirname(entry.path), adapter(id).skills.folder)));
+const carved = (field, path, entry) => field.startsWith("live.skillDirs.") && SKILL_PARENTS.includes(entry.label) && comparable(path) !== comparable(entry.path) && isWithin(comparable(path), comparable(entry.path))
+  && (entry.label !== "real-gemini-home" || declared(field, path, entry));
 const outsideStore = (pilot, field) => pilot.live !== undefined && (field === "repos" || field.startsWith("live.skillDirs.") || FOLDER_CLASSES.some((name) => field === "writeClasses." + name));
 function validate(pilot, context, allowInternal = false) {
   if (!isObject(pilot)) fail("pilot");

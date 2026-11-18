@@ -14,7 +14,7 @@ import { listOutbox } from "../src/hubs/git-write.mjs";
 import { parseHubNote } from "../src/hubs/read.mjs";
 import { NOTE_RULES } from "../src/hubs/join.mjs";
 import { writeKitReceipt } from "../src/hooks/receipt.mjs";
-import { hookLogPath } from "../src/hooks/session.mjs";
+import { hookLogPath, sessionKey, sessionsDir } from "../src/hooks/session.mjs";
 import { ownerAction } from "../src/hooks/owner-block.mjs";
 import { collapseArea, buildNote, readBranch, noteLine } from "../src/notes/post.mjs";
 
@@ -201,6 +201,35 @@ test("notes a developer's own note is never reported to them", async (t) => {
   const listed = await a.ok(["note", "list", "--scope", SCOPE], at(0.6));
   assert.deepEqual(listed.colleagues, []);
   assert.equal(listed.own.length, 1);
+});
+
+// Antigravity CLI reads no context from a post-tool hook (hooks.deferToolContext), and note reports are not deferred.
+test("notes an Antigravity edit posts the developer's own note and prints no report of a teammate's note", async (t) => {
+  const hub = await hubFixture(t);
+  const a = await machine(t, { handle: "alice", projects: one(hub) }), b = await machine(t, { handle: "bob", projects: one(hub) });
+  await a.hook("claude", "pre-tool", a.edit("src/billing/client.js"));
+  await sync(a);
+  await sync(b, at(0.2));
+  const agy = async (event, body) => {
+    const chunks = [];
+    assert.equal(await main(["hook", "--event", event, "--agent", "antigravity", "--pilot", b.path], { stdout: { write: (v) => { chunks.push(v); return true; } }, stdin: JSON.stringify({ conversationId: "agy-b", cwd: b.repos[SCOPE], workspacePaths: [b.repos[SCOPE]], ...body }), now: at(0.3) }), 0);
+    return chunks.join("");
+  };
+  const edited = { hookEventName: "PostToolUse", toolCall: { id: "call-0001", name: "edit_file", args: { Path: join(b.repos[SCOPE], "src/billing/client.js") } }, error: "" };
+  // The post-tool call posts bob's own note and prints the neutral object, with no report of alice's note.
+  assert.equal(await agy("post-tool", edited), "{}\n");
+  assert.deepEqual((await b.notesIn()).flatMap(posted).map((n) => [n.handle, n.area.paths]), [["bob", ["src/billing"]]]);
+  assert.ok((await b.log()).some((e) => e.agent === "antigravity" && e.event === "note-post" && e.code === "note-queued"));
+  // The report is not held for later, and it is not recorded as shown.
+  assert.equal(await agy("user-prompt", { hookEventName: "PreInvocation", invocationNum: 1, lastUserInput: "" }), "{}\n");
+  assert.equal(await agy("post-tool", edited), "{}\n");
+  // Neither post-tool call threw inside the hook. A report built on such a call throws there, and the hook still
+  // prints the neutral object, so only the hook log shows it.
+  assert.deepEqual((await b.log()).filter((e) => e.agent === "antigravity" && e.code === "internal"), []);
+  const noteState = JSON.parse(await readFile(join(sessionsDir((await b.roots()).stateRoot), sessionKey("antigravity", "agy-b") + ".notes.json"), "utf8"));
+  assert.deepEqual([noteState.posted, noteState.areas, noteState.reported], [1, ["src/billing"], []]);
+  // The note was there to report: a Claude Code call on the same machine still gets it.
+  assert.match(await b.hook("claude", "pre-tool", b.edit("src/billing/client.js", { session: "ses-b" }), at(0.3)), /alice is working here/);
 });
 
 test("notes a newer note in the same area replaces the developer's older note", async (t) => {

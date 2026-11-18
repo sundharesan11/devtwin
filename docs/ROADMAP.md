@@ -66,7 +66,7 @@ The [source installation bridge](plans/skill-source-installation.md) maps one ex
 
 Native host adapters/discovery, reviewed adoption, automatic update policies and a reusable automation-setup skill remain. Add the preset to initial onboarding only after those components pass their own gates. Keep recipes public and each user's installations, decisions, schedules and reports private.
 
-The delivery sequence is read-only catalog/checker → package acquisition and explicit selections → disposable adapter/updater tests → reviewed local activation → fresh-host discovery checks → disabled schedule and harmless run → weekly enablement. Claude, Codex, Gemini CLI, Cursor and Command Code require explicit compatibility evidence; a common folder is not universal support. The weekly schedule has user approval, but no weekly updater, enabled schedule or twelve-source activation is claimed yet. Scheduler recipes remain generic; each user's schedule and execution receipts stay local.
+The delivery sequence is read-only catalog/checker → package acquisition and explicit selections → disposable adapter/updater tests → reviewed local activation → fresh-host discovery checks → disabled schedule and harmless run → weekly enablement. Claude, Codex, Gemini CLI, Antigravity CLI, Cursor and Command Code require explicit compatibility evidence; a common folder is not universal support. The weekly schedule has user approval, but no weekly updater, enabled schedule or twelve-source activation is claimed yet. Scheduler recipes remain generic; each user's schedule and execution receipts stay local.
 
 ## Portable selected-record handoff
 
@@ -87,7 +87,7 @@ The six residuals recorded by the bounded pilot review are resolved and merged t
 
 Known items found during that work, not yet changed:
 
-- CLI record commands set `recordedBy` from environment variables: `claude`, `codex` or `human`. This is a label for the audit trail, not an identity attestation.
+- CLI record commands set `recordedBy` from environment variables: `claude`, `codex`, `gemini`, `antigravity` or `human`. This is a label for the audit trail, not an identity attestation.
 - `record publish --apply` always acts as the controller. The CLI does not check who is running it.
 - The default onboarding request ID is derived from the command inputs, not from source hashes. Re-running onboarding with the same flags after sources change reuses that ID, so it replays or refuses instead of onboarding again. Pass a new `--request-id` for a fresh onboarding.
 - Bundled skills are checked for real command routes only. Their flags are not checked against each command's declared options.

@@ -35,6 +35,15 @@ export const liveAddRepoCommand = {
     return values.apply ? (await live()).applyLiveAddRepo(input, ctx) : (await live()).planLiveAddRepo(input, ctx);
   }
 };
+// Adds one agent to an existing live config (live init refuses when a config exists). --agent takes one value; the
+// apply shows the owner dialog with the agent and its skills folder.
+export const liveAddAgentCommand = {
+  options: { ...liveOptions, agent: { type: "string" } },
+  async run(values, ctx) {
+    const input = liveInput(values, { agent: values.agent });
+    return values.apply ? (await live()).applyLiveAddAgent(input, ctx) : (await live()).planLiveAddAgent(input, ctx);
+  }
+};
 export const liveSetKitCommand = {
   // U45: --commit <sha> pins a Git kit, --kit <version>+<digest> a package kit; the apply shows the owner dialog.
   options: { ...liveOptions, commit: { type: "string" }, kit: { type: "string" } },

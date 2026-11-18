@@ -2,12 +2,13 @@ import { DevtwinError } from "../../errors.mjs";
 import claude from "./claude.mjs";
 import codex from "./codex.mjs";
 import gemini from "./gemini.mjs";
-// Issue #8: the agent adapter registry. Each adapter (claude.mjs, codex.mjs, gemini.mjs) declares, as data and small
-// pure functions: id, name, actor, its skills folder, its global instructions file, its hook settings file with the
-// event map, tool matchers, parse(payload) and format(result), and its capabilities. Code outside the adapters names
-// no agent: it asks the registry. The order is the order every list shows. Antigravity CLI has no adapter yet: its
-// hook and skill locations differ and its public docs disagree.
-const ADAPTERS = Object.freeze([claude, codex, gemini]);
+import antigravity from "./antigravity.mjs";
+// Issue #8: the agent adapter registry. Each adapter (claude.mjs, codex.mjs, gemini.mjs, antigravity.mjs) declares, as
+// data and small pure functions: id, name, actor, its skills folder, its global instructions file, its hook settings
+// file with the event map, tool matchers, parse(payload) and format(result), and its capabilities. Code outside the
+// adapters names no agent: it asks the registry. The order is the order every list shows, and the order actorOf
+// checks: an Antigravity CLI shell does not set GEMINI_CLI, so it is safe after gemini.
+const ADAPTERS = Object.freeze([claude, codex, gemini, antigravity]);
 export const AGENT_IDS = Object.freeze(ADAPTERS.map((a) => a.id));
 export const isAgent = (id) => typeof id === "string" && AGENT_IDS.includes(id);
 export function adapter(id) {

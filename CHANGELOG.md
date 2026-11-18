@@ -4,6 +4,31 @@ This file lists the notable changes in each devtwin release. The format follows 
 
 ## [Unreleased]
 
+### Added
+
+- **Antigravity CLI as the fourth agent.** `live init --agent antigravity`, `agents install --agent antigravity`, `agents install --hooks --agent antigravity` and `instructions plan --agent antigravity` set up Antigravity CLI (`agy`). Its skills go to `~/.gemini/config/skills`, its instruction block to `~/.gemini/GEMINI.md`, and its hook entries under a `devtwin` key in `~/.gemini/config/hooks.json`. The setup wizard has the new steps `skills-antigravity` and `hooks-antigravity`.
+- **Antigravity CLI hooks.** The hook reads Antigravity CLI payloads. For a hook line with a valid event, agent and pilot, it always prints one JSON object. On `PreToolUse` it denies owner-only devtwin commands in `run_command` and `manage_task` with `{"decision":"deny","reason":...}`. With nothing to deny, it prints `{"decision":"ask"}`, which hands the call to the agent's normal permission flow. The session-start line and the prompt lessons arrive as an injected system message, on `SessionStart` and `PreInvocation`. Lessons for a file or a command are held on `PostToolUse` and arrive on the next model call. `Stop` writes the stop stub.
+- **`live add-agent`.** `live add-agent --agent <id>` adds an agent to an existing live config. It has a preview, and its apply shows an owner dialog that names the agent and its skills folder. One setup batch then installs the agent's skills and hooks. Before the agent is added, `setup status` shows its steps as skipped, with the reason "agent not in the live config".
+- **`antigravity` actor.** A record written from an Antigravity CLI shell (`ANTIGRAVITY_AGENT` or `ANTIGRAVITY_CONVERSATION_ID` set) has the actor `antigravity`. An older devtwin refuses such a record in a portable handoff.
+
+### Changed
+
+- **One edit for a shared instruction file.** Gemini CLI and Antigravity CLI both read `~/.gemini/GEMINI.md`. `instructions plan` now plans a file that two selected agents name once, and lists the other agent in `shared`. `instructions apply` edits the file once. A `--remove` for one agent keeps the block while the other agent still uses the file, with the reason `shared-file`.
+- When it writes the block, the `instructions apply` owner dialog names every agent that reads a planned file. A plan that holds `GEMINI.md` names Gemini CLI and Antigravity CLI.
+- The `hookTargets` write class also accepts `~/.gemini/config/hooks.json`. A live config may name `~/.gemini/config/skills`, and only that folder in `~/.gemini`, as the Antigravity CLI skills folder.
+
+### Known limits
+
+- Antigravity CLI support is checked in a real Antigravity CLI 1.5 session: the events, the payload, the deny and the `ask` reply on `PreToolUse`. A later version can change them. The Antigravity app and IDE read the same hooks file and are not checked.
+- One real session ran devtwin's own hook entries from a hooks file in a disposable workspace. The session-start line arrived, an owner-only command was denied, a normal command ran, and the lesson for a read file arrived on the next model call. That session also read the block in `~/.gemini/GEMINI.md` and listed the skills in `~/.gemini/config/skills`. No real session has yet run devtwin's installed entries from `~/.gemini/config/hooks.json` or loaded a devtwin skill from `~/.gemini/config/skills`.
+- On Antigravity CLI, a lesson for a file or a command arrives one model call later, after the tool ran. When two hook calls of one conversation overlap, a held lesson can wait for the next tool call that matches it. A lesson held in one worktree is not printed in another.
+- Antigravity CLI has no compaction event, so the four-line lesson cap does not reset after a compaction.
+- An Antigravity CLI tool call shows no report of a teammate's "working on" note. The agent's own note is still posted.
+- `{"decision":"ask"}` is not a gate. In the agent's auto mode a command runs with no prompt. The only gate is the deny of the owner-action block.
+- `agents status` does not read the `enabled` key that the Antigravity CLI `/hooks` screen writes. With `enabled` set to `false`, it still says `installed` while the agent runs no devtwin hook.
+- A pinned kit older than this release does not know `live add-agent`. Run `live set-kit` to the new kit first.
+- No command removes an agent from a live config. A kit from before this release refuses a live config that names Antigravity CLI, so you cannot roll back to such a kit after `live add-agent --agent antigravity`. See [Upgrading](docs/UPGRADING.md#roll-back-after-you-add-an-agent).
+
 ## [0.1.0-alpha.2]
 
 Gemini CLI joins Claude Code and Codex, and lessons can go to an org knowledge server over MCP. Upgrade with `npm i -g devtwin@alpha`, then follow [Upgrading](docs/UPGRADING.md).

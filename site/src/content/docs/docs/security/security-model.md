@@ -31,6 +31,8 @@ The fence controls what **this CLI** writes. It does not limit what your agent h
 - In each named skill folder, devtwin writes only `devtwin-*` entries. It never creates, removes or changes the mode of the folder or its parents, and never touches a foreign, symlinked, edited or unowned entry. A conflict blocks only that agent.
 - An entry is removable only when its receipt matches a completed journal in this store for the same config ID.
 - Codex and Gemini CLI share `~/.agents/skills`. The fence accepts that one folder for both agents and still refuses any other overlap. An uninstall for one of them keeps the entries while the other is in the live config.
+- The Antigravity CLI skills folder is `~/.gemini/config/skills`, inside the protected `~/.gemini` home. The fence opens that home only for this exact folder, and only as the Antigravity CLI skills folder. No other path in `~/.gemini` can be a skills folder.
+- `live add-agent` adds one agent's skills folder to an approved live config. Its apply shows the owner dialog with the agent and the exact folder, and the hook denies it from an agent shell. It is never part of a setup batch.
 - Live commands run only from the kit the config names, with your real home: a Git clone clean and detached at its commit, or a locked package kit folder that matches its version and digest.
 - The rollback check compares a skill folder with the inventory taken before an install. It restores nothing.
 - Onboarding copies some repository text into the store, protected by mode 0700 and disk encryption only. Backups are encrypted, but see [Backups](#backups) for what that protects.
@@ -67,7 +69,7 @@ One table in the kit (`src/policy/tiers.mjs`) gives each CLI route a tier. A tes
 - **Weekly review.** Global preferences, general lessons, writes past the session cap and items from a fetched or synced source wait in one list under the state root, in private files. `activity review --apply` shows each item's full text in the owner dialog, up to ten items in one dialog while the text fits. Approve accepts every item in the dialog, and deny leaves them waiting. Each accept and reject adds an audit entry. Nothing enters the global instruction block without a dialog that showed its full text. The weekly notification names the review when items wait.
 - **Session cap.** An agent session makes at most 20 automatic knowledge writes. The 21st fails with `DEVTWIN_GATE_REQUIRED`, and its draft waits for the weekly review. Writes with no `--session` count in one bucket per caller and UTC day, with the same cap. Each caller also makes at most 100 automatic writes per UTC day across all sessions, so a new `--session` does not lift the cap.
 - **Plain text only.** Automatic lesson and record text passes the checks that preferences use, plus the credential and scope-name checks. A title or summary with Markdown structure, an `@` import, a devtwin marker or text that tells the reader to ignore other instructions is refused.
-- **Caller label.** A record that a CLI write makes names its caller in `recordedBy`: `claude` when `CLAUDECODE` is set, `codex` when a `CODEX_` variable is set, and `human` otherwise. This is a label for the audit trail, not a gate: any process can unset those variables. A `confirmed` record needs a reviewer, and a `confirmed` or `disputed` write shows the owner dialog whoever runs it. Only `undo` writes a retraction.
+- **Caller label.** A record that a CLI write makes names its caller in `recordedBy`: `claude` when `CLAUDECODE` is set, `codex` when a `CODEX_` variable is set, `gemini` when `GEMINI_CLI` is set, `antigravity` when `ANTIGRAVITY_AGENT` or `ANTIGRAVITY_CONVERSATION_ID` is set, and `human` otherwise. The first match in that order wins. This is a label for the audit trail, not a gate: any process can unset those variables. A `confirmed` record needs a reviewer, and a `confirmed` or `disputed` write shows the owner dialog whoever runs it. Only `undo` writes a retraction.
 - **Confirmed paths.** `paths confirm` is always ask, because a confirmation makes skills stop asking for the kit and config paths. A changed kit HEAD, kit path, config path or config file ends the confirmation. 90 days after a confirmation the hook stops renewing the kit receipt and asks you to run `paths confirm` again.
 
 ## Owner answers over SSH
@@ -128,7 +130,15 @@ The full contract is in [Write a lesson to the repository](/docs/guides/organiza
 
 ## Live-mode write classes
 
-The approved [write classes](/docs/reference/configuration/#write-classes) are the only writes outside the store and the skill folders. They widen the fence by exact paths only, and they are covered by the approved config digest. In an agent settings file, devtwin changes only its own entries, and backs up the exact prior bytes first. The settings files are `~/.claude/settings.json`, `~/.codex/hooks.json` and `~/.gemini/settings.json`. The instruction files are `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md`.
+The approved [write classes](/docs/reference/configuration/#write-classes) are the only writes outside the store and the skill folders. They widen the fence by exact paths only, and they are covered by the approved config digest. In an agent settings file, devtwin changes only its own entries, and backs up the exact prior bytes first. The settings files are `~/.claude/settings.json`, `~/.codex/hooks.json`, `~/.gemini/settings.json` and, for Antigravity CLI, `~/.gemini/config/hooks.json`. The instruction files are `~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md` and `~/.gemini/GEMINI.md`, which Gemini CLI and Antigravity CLI both read.
+
+Three points are specific to Antigravity CLI:
+
+- **Its hooks file is keyed by hook name.** devtwin reads and changes only its own `devtwin` key in `~/.gemini/config/hooks.json`. A hook under another name keeps its content. devtwin creates no folder in `~/.gemini`.
+- **No trust step, and an off switch devtwin does not see.** Antigravity CLI has no approval step for the hooks in that file. Its `/hooks` screen can set `enabled` to `false` inside `devtwin`. The agent then runs no devtwin hook, so the owner-action block is off, while `agents status` still says `installed`.
+- **`ask` is not a gate.** On a shell call that it does not deny, the hook prints `{"decision":"ask"}`. That hands the call to the agent's normal permission flow, and in the agent's auto mode a command runs with no prompt. devtwin does not approve tools. The only gate is the deny of the owner-action block.
+
+When it writes the block, the owner dialog of `instructions apply` names every agent that reads a planned file. A plan that holds `GEMINI.md` names Gemini CLI and Antigravity CLI.
 
 ## Network use
 
