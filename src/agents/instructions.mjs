@@ -145,8 +145,8 @@ const readersOf = (dirs, plan) => AGENTS.filter((id) => targetsOf(dirs, id).some
 // The names the dialog shows, in registry order: the listed agents ("Claude Code and Codex"), each agent of the plan
 // and each reader of a planned file (readers), such as "Claude Code, Codex, Gemini CLI and Antigravity CLI" for a plan
 // that holds GEMINI.md. The dialog is exact: it names an agent that reads a planned file even when no flag named it.
-const agentNames = (plan, readers = []) => {
-  const names = AGENTS.filter((id) => LISTED.includes(id) || plan.actions.some((a) => a.agent === id) || (plan.shared ?? []).some((s) => s.agent === id) || readers.includes(id)).map((id) => adapter(id).name);
+const agentNames = (plan, readers) => {
+  const names = AGENTS.filter((id) => LISTED.includes(id) || plan.actions.some((a) => a.agent === id) || readers.includes(id)).map((id) => adapter(id).name);
   return names.length > 1 ? names.slice(0, -1).join(", ") + " and " + names.at(-1) : names[0];
 };
 const dialogFor = (plan, readers) => ({ title: plan.mode === "remove" ? "Remove the devtwin block from agent instructions" : "Write the devtwin block to agent instructions", body: [
