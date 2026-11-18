@@ -1,11 +1,11 @@
 ---
 title: Preferences and templates
-description: Turn a correction into a preference that every Claude Code, Codex, Gemini CLI and Antigravity CLI session reads, make your own routines, and keep your own structure for RCAs, reports and decision notes.
+description: Turn a correction into a preference that every Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode session reads, make your own routines, and keep your own structure for RCAs, reports and decision notes.
 sidebar:
   label: Preferences and templates
 ---
 
-You tell an agent "use Playwright, not a manual browser". With devtwin, you say it once. The agent proposes the correction as a preference, you accept it, and every later Claude Code, Codex, Gemini CLI and Antigravity CLI session reads it from your own instruction files.
+You tell an agent "use Playwright, not a manual browser". With devtwin, you say it once. The agent proposes the correction as a preference, you accept it, and every later Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode session reads it.
 
 ## How a preference reaches your agents
 
@@ -42,8 +42,11 @@ A session can propose at most three preferences, and one for each kind of correc
 | Codex | A marker block in `~/.codex/AGENTS.md` |
 | Gemini CLI | A marker block in `~/.gemini/GEMINI.md` |
 | Antigravity CLI | The same marker block in `~/.gemini/GEMINI.md` |
+| OpenCode | `~/.config/opencode/devtwin.md`, a file devtwin owns. The devtwin plugin file gives it to the model. |
 
-Gemini CLI and Antigravity CLI read one file, so one block serves both. A plan for both agents lists the file once and names the other agent in `shared`. `instructions apply --remove` for one of them keeps the block while the other still uses the file; the action is `unchanged` with the reason `shared-file`. When it writes the block, the owner dialog names every agent that reads a planned file.
+Gemini CLI and Antigravity CLI read one file, so one block serves both. A plan for both agents lists the file once and names the other agent in `shared`. `instructions apply --remove` for one of them keeps the block while the other still uses the file; the action is `unchanged` with the reason `shared-file`. When it writes the block, the owner dialog always names Claude Code and Codex, and it adds each other agent that reads a planned file.
+
+For OpenCode, no import line names `~/.config/opencode/devtwin.md`: the devtwin plugin file adds its text to each model call. devtwin never creates or edits an OpenCode `AGENTS.md` or `opencode.json`; those files are yours. In a real OpenCode 2.3.0 session, OpenCode loaded a project `AGENTS.md` and a global `~/.config/opencode/AGENTS.md`, and it did not load `~/.claude/CLAUDE.md`. To make OpenCode read the Claude Code file, add `"instructions": ["~/.claude/CLAUDE.md"]` to your own `~/.config/opencode/opencode.json`. A real session loaded the file with that setting, and devtwin does not write it. The OpenCode source says that OpenCode expands no `@path` line, so an import line in `CLAUDE.md` gives OpenCode no block text: the devtwin block reaches OpenCode through the plugin, from `~/.config/opencode/devtwin.md`. `instructions apply --remove --agent opencode` empties the block and leaves the file.
 
 Text outside `<!-- devtwin:begin -->` and `<!-- devtwin:end -->` stays byte for byte. A repository's own `AGENTS.md` or `CLAUDE.md` is never a target. In live mode, each file must be approved first with `live write-classes --instruction-target`; see [Live mode](/docs/guides/live-mode/).
 

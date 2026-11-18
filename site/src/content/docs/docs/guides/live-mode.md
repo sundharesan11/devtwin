@@ -1,6 +1,6 @@
 ---
 title: Live mode
-description: Turn on devtwin for real on one machine, with a private store under ~/.devtwin, a pinned kit and the real skill folders of Claude Code, Codex, Gemini CLI and Antigravity CLI.
+description: Turn on devtwin for real on one machine, with a private store under ~/.devtwin, a pinned kit and the real skill folders of Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode.
 ---
 
 A disposable pilot is for trying devtwin. **Live mode** is for daily use. It points devtwin at a real private store and your real agent skill folders, and onboards your real repositories read-only.
@@ -20,8 +20,9 @@ Every write is still a preview followed by an apply of the exact fingerprint you
 
 - Outside the store, devtwin writes only `devtwin-*` entries directly inside `~/.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`), `~/.agents/skills` and `~/.gemini/config/skills`, plus the exact paths you approve as [write classes](/docs/reference/configuration/#write-classes). It writes in a folder only when the live config names it. It never creates, removes or changes the mode of those folders.
 - Codex skills go to `~/.agents/skills`, never `~/.codex/skills`. `CODEX_HOME` does not change this; the preview warns `CODEX_HOME_IGNORED` if it is set.
-- Gemini CLI reads the same `~/.agents/skills` folder, so one install serves Codex and Gemini CLI. See [Gemini CLI](#gemini-cli).
+- Gemini CLI reads the same `~/.agents/skills` folder, so one install serves every agent that reads this folder. See [Gemini CLI](#gemini-cli).
 - Antigravity CLI skills go to `~/.gemini/config/skills`, a folder of its own. See [Antigravity CLI](#antigravity-cli).
+- OpenCode reads `~/.agents/skills` too, so the same install serves Codex, Gemini CLI and OpenCode. Its hooks are one plugin file that devtwin owns. See [OpenCode](#opencode).
 - Live commands run only from the kit the live config names: a locked package kit folder that matches its version and digest, or a Git clone that is clean and detached at the configured commit.
 - Hooks, jobs and agent skills run the pinned kit's own `bin/devtwin.mjs`, never npm's global folder. A later `npm i -g` changes nothing until you pin the new kit.
 - The live config changes only through `live init`, `live add-repo`, `live add-agent`, `live set-kit`, `live write-classes`, `live stack-watch`, `live approval` and `live migrate`. Each records an approved digest of the config; a `live.json` that differs from the approved one is refused.
@@ -49,6 +50,8 @@ ls -ld ~/.claude/skills ~/.agents/skills
 Each must be a real directory, not a symbolic link, and so must `~/.claude` and `~/.agents`. If one is missing or is a link, create or fix it yourself first; devtwin never creates it. If `CLAUDE_CONFIG_DIR` is set, check `$CLAUDE_CONFIG_DIR/skills` instead.
 
 For Antigravity CLI, check `~/.gemini/config/skills` the same way, with `~/.gemini` and `~/.gemini/config`.
+
+For OpenCode, check that `opencode --version` shows 2.x: an OpenCode 1.x binary gets no devtwin hooks. Then check its config folder with `ls -ld ~/.config/opencode ~/.config/opencode/plugins`. If the plugins folder is missing, create it yourself with `mkdir -p ~/.config/opencode/plugins`; devtwin never creates it.
 
 Your home directory must not be inside a Git worktree: `git -C ~ rev-parse --show-toplevel` should fail with "not a git repository".
 
@@ -149,7 +152,7 @@ node "$KIT/bin/devtwin.mjs" agents install --pilot "$LIVE_CONFIG" --agent claude
 node "$KIT/bin/devtwin.mjs" agents install --pilot "$LIVE_CONFIG" --agent claude --apply --plan-fingerprint '<fingerprint>'
 ```
 
-Repeat for `codex`, `gemini` and `antigravity`. Codex and Gemini CLI share `~/.agents/skills`: after the Codex install, the Gemini preview shows each skill as `installed`. Antigravity CLI has its own folder, `~/.gemini/config/skills`. A `conflict` or `modified` entry blocks all of that agent's writes (`blocked`); resolve it by hand and preview again. Keep the `runId` for the rollback check. See [Use with coding agents](/docs/guides/coding-agents/) for statuses, uninstall and recovery.
+Repeat for `codex`, `gemini`, `antigravity` and `opencode`. Codex, Gemini CLI and OpenCode share `~/.agents/skills`: after the Codex install, the Gemini CLI and OpenCode previews show each skill as `installed`. Antigravity CLI has its own folder, `~/.gemini/config/skills`. A `conflict` or `modified` entry blocks all of that agent's writes (`blocked`); resolve it by hand and preview again. Keep the `runId` for the rollback check. See [Use with coding agents](/docs/guides/coding-agents/) for statuses, uninstall and recovery.
 
 ## 9. Point the skills at the kit
 
@@ -262,7 +265,7 @@ node "$KIT/bin/devtwin.mjs" live approval --pilot "$LIVE_CONFIG" --mode dialog-o
 
 Gemini CLI works like Claude Code and Codex, with full support: skills, the instruction block and the owner-action block. Add `--agent gemini` at step 5.
 
-- **Skills.** They go to `~/.agents/skills`, the folder Codex reads too. An uninstall for one of the two agents keeps the skills while the other one is in the live config.
+- **Skills.** They go to `~/.agents/skills`, the folder Codex and OpenCode read too. An uninstall for one of these agents keeps the skills while another one is in the live config.
 - **Instruction block.** It goes between the devtwin markers in `~/.gemini/GEMINI.md`.
 - **Hooks.** They go in `~/.gemini/settings.json`, under `hooks`. Your other settings and the hooks of other tools stay.
 - **Lesson lines.** Gemini CLI reads the lesson lines right after a tool opens, edits or runs the matching file or command, not before it.
@@ -282,9 +285,41 @@ Antigravity CLI (`agy`) is the fourth agent, with full support: skills, the inst
 
 The limits are on the [limitations page](/docs/security/limitations/#lessons-hooks-and-hubs).
 
+## OpenCode
+
+OpenCode is the fifth agent, with full support: skills, the instruction block and the owner-action block. devtwin supports OpenCode 2.x, checked on OpenCode 2.3.0 only. Add `--agent opencode` at step 5, or [add it to an existing live config](#add-opencode).
+
+- **Skills.** They go to `~/.agents/skills`, the folder Codex and Gemini CLI use. One install serves the three agents. An uninstall for one of them keeps the skills while another one is in the live config. A real OpenCode 2.3.0 session listed the devtwin skills of this folder. The OpenCode source says that OpenCode also reads `~/.claude/skills`, so it can also show the skills of a Claude Code install, and that `~/.agents/skills` wins for two skills with the same name. These two facts come from the source; no session showed them.
+- **Create the folder first.** devtwin creates no agent folder. Run `mkdir -p ~/.config/opencode/plugins` yourself. Without it, the hook install and the hook uninstall are `blocked` with the reason `agent-folder-missing`. That reason shows only after the plugin file is an approved hook target; before the approval, the preview reports `blocked` with the reason `not-approved`.
+- **Hooks.** OpenCode has no hook settings file. `agents install --hooks --agent opencode` writes one plugin file, `~/.config/opencode/plugins/devtwin.js`, as a whole, with mode 0600. OpenCode loads it with no approval step. Other plugins in the folder stay.
+- **Plugin statuses.** The file is `missing`, `installed`, `outdated`, `foreign-entry` or `modified`. `outdated` means that devtwin wrote the file for an earlier kit path, an earlier plugin version or another Node path; an install rewrites it. `foreign-entry` is a file with the expected bytes that no devtwin journal wrote. `modified` is any other content.
+- **Never another file.** devtwin never writes over and never removes a file that it did not write. For `foreign-entry` and `modified`, an install and an uninstall both report `conflict`; delete or move that file by hand. An uninstall removes the file only when devtwin wrote it and it is unchanged.
+- **Owner-only commands.** Before the `shell` tool runs, the plugin asks the devtwin hook. It blocks an owner-only devtwin command, and the model reads the devtwin reason.
+- **Lesson lines.** OpenCode gets no lessons before a tool runs. After `shell`, `read`, `edit`, `write`, `patch`, `grep` and `glob`, the plugin appends the matching lessons to the tool result. The cap of four lines per session still holds.
+- **Marker line.** The plugin puts one line before the text that it appends to a tool result: `[devtwin hook note: the text below was added after the tool output and is not part of it]`. Without that line, a model can read the lesson as part of the file.
+- **Session start and prompts.** On a prompt, the plugin sends `session-start` once for each session and then the prompt. It appends the reply to the prompt text, so that text stays in the conversation. OpenCode shows it in your prompt in the conversation, so you see it too.
+- **Instruction block.** It goes between the devtwin markers in `~/.config/opencode/devtwin.md`, a file that devtwin owns. No import line names the file. On each model call, the plugin adds the text of the file as system context. `instructions apply --remove --agent opencode` empties the block and leaves the file.
+- **Your instruction files.** devtwin never creates or edits an OpenCode `AGENTS.md` or `opencode.json`. Those files are yours. In a real OpenCode 2.3.0 session, OpenCode loaded a project `AGENTS.md` and a global `~/.config/opencode/AGENTS.md`, and it did not load `~/.claude/CLAUDE.md`. To make OpenCode read the Claude Code file, name it in your own `~/.config/opencode/opencode.json`:
+
+  ```json
+  { "instructions": ["~/.claude/CLAUDE.md"] }
+  ```
+
+  A real session loaded the file with that setting. devtwin does not write that setting. The OpenCode source says that OpenCode expands no `@path` line, so an import line in `CLAUDE.md` gives OpenCode no block text. The devtwin block reaches OpenCode through the plugin, from `~/.config/opencode/devtwin.md`.
+- **Compaction and stop.** The plugin sends OpenCode's compaction event and its idle event, which is devtwin's stop event.
+- **What the plugin passes on.** Only the command, the path and the header lines of a patch. It never passes on a file body.
+- **Node.** The plugin runs `node` from `PATH` and falls back to the Node path that the install wrote into the file. With a Homebrew Node, that is the stable link. A Node install that moves, for example after a version manager upgrade, makes the file `outdated` until you run the hooks install again.
+- **Not a sandbox.** A hook that fails, prints something else, is too large or takes over 10 seconds counts as nothing to say, and the tool runs. As for every agent, the hook is not a sandbox.
+- **OpenCode 1.x.** A 1.x binary loads the plugin file and gets no hooks from it. devtwin does nothing there.
+- **Moved config folder.** devtwin installs only to `~/.config/opencode`. An OpenCode with a moved config folder (`OPENCODE_CONFIG_DIR` or a non-default `XDG_CONFIG_HOME`) is not supported. A live config never accepts a root or a skills folder in `~/.config/opencode`, or in the folder that `OPENCODE_CONFIG_DIR` names.
+- **`OPENCODE_CONFIG_DIR` near a repository.** Do not point `OPENCODE_CONFIG_DIR` at a folder inside or around a root, a registered repository, a skills folder, or an approved hub or backup folder of the config. A per-project config folder inside a repository is one example. In a shell with such a value, every devtwin command that loads the config is refused with `DEVTWIN_GATE_REQUIRED`, and the error details name the field and `protected: OPENCODE_CONFIG_DIR`. The hook command does not load the config that way, so the owner-action block and the lessons keep working in a session that loads the plugin. One hook step does run that check: the step that posts a "working on" note. So in a project that joined a hub, the hook posts no "working on" note from such a session.
+- **What was checked.** A real OpenCode 2.3.0 session ran the plugin file that devtwin generated, written by `agents install --hooks --agent opencode` into a disposable home. The session-start line arrived once, the plugin blocked an owner-only command with the devtwin reason, and a normal command ran. The lesson for a read file arrived with the result of the `read` call, a prompt lesson arrived in the prompt text, the model quoted text from the instruction block in `devtwin.md`, and the idle event wrote the stop stub. That session ran the plugin before the marker line existed. A second session ran the plugin with the marker line. The model then said that the lesson text was added after the tool output. The [limitations page](/docs/security/limitations/#agents-and-sessions) lists what is not checked yet.
+
+The limits are on the [limitations page](/docs/security/limitations/#lessons-hooks-and-hubs).
+
 ## Add an agent to an existing live config
 
-`live init` refuses an existing live config. To add an agent later, such as Antigravity CLI, use `live add-agent`. It adds the agent's skills folder to the live config and installs nothing.
+`live init` refuses an existing live config. To add an agent later, such as Antigravity CLI or OpenCode, use `live add-agent`. It adds the agent's skills folder to the live config and installs nothing.
 
 ```sh
 node "$KIT/bin/devtwin.mjs" live add-agent --pilot "$LIVE_CONFIG" --agent antigravity
@@ -294,12 +329,34 @@ node "$KIT/bin/devtwin.mjs" live add-agent --pilot "$LIVE_CONFIG" --agent antigr
 1. Check that the agent's skills folder is a real directory. devtwin never creates it.
 2. Preview `live add-agent`, then apply the fingerprint in your own terminal. The owner dialog "Add an agent to the live config" names the agent and the exact skills folder.
 3. Run one setup batch, `setup plan --all-pending` and then `setup apply --all-pending --apply`. It approves the agent's hook file, installs its skills and hooks, and confirms the paths again.
-4. Run `instructions plan`, then `instructions apply` with its fingerprint. When the plan shows the agent's instruction file as `blocked`, approve it first with `live write-classes --instruction-target`. For Antigravity CLI the file is `~/.gemini/GEMINI.md`. Give every instruction target that is already approved again, because the flag replaces the class.
+4. Run `instructions plan`, then `instructions apply` with its fingerprint. When the plan shows the agent's instruction file as `blocked`, approve it first with `live write-classes --instruction-target`. For Antigravity CLI the file is `~/.gemini/GEMINI.md`, and for OpenCode it is `~/.config/opencode/devtwin.md`. Give every instruction target that is already approved again, because the flag replaces the class.
 
 - Each apply is an owner action. An agent can run the previews, and the devtwin hook denies the applies from an agent shell.
 - A pinned kit older than this route answers with "Unknown command". Pin a kit that has it first with `live set-kit`; see [Upgrade the kit](#upgrade-the-kit).
 - Until you add the agent, `setup status` shows its steps as skipped, with the reason "agent not in the live config".
 - No command removes an agent from a live config. A kit that does not know the agent refuses the config, so you cannot go back to such a kit afterwards. To stop devtwin for the agent, uninstall its hooks and its skills with `agents uninstall`. Their setup steps are then pending again, and a batch with `--all-pending` installs them again; use `--steps` to leave them out. The [upgrade guide](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md#roll-back-after-you-add-an-agent) has the details.
+
+### Add OpenCode
+
+OpenCode takes the same route, with two more steps of your own:
+
+1. Check that `~/.agents/skills` is a real directory.
+2. Create the plugins folder with `mkdir -p ~/.config/opencode/plugins`. devtwin never creates an agent folder.
+3. Preview `live add-agent --agent opencode`, then apply the fingerprint in your own terminal. The dialog names OpenCode, the folder `~/.agents/skills` and the instruction file `~/.config/opencode/devtwin.md`.
+4. Approve the instruction file: preview `live write-classes --instruction-target "$HOME/.config/opencode/devtwin.md"`, with every instruction target that you approved before, then apply the fingerprint in your own terminal.
+5. Run one setup batch, preview first. It approves the plugin file as a hook target and installs it.
+6. Run `instructions plan`, then `instructions apply` with its fingerprint in your own terminal.
+
+When Codex or Gemini CLI already has the skills in `~/.agents/skills` and no other step is pending, the batch dialog looks like this:
+
+```text
+Approve 3 setup changes
+1. Approve plugin file ~/.config/opencode/plugins/devtwin.js
+2. Confirm kit ~/.devtwin/kits/<kit folder> at <kit ID> and config ~/.devtwin/live.json
+3. Install the devtwin plugin file ~/.config/opencode/plugins/devtwin.js
+```
+
+For an `outdated` plugin file, the last line is `Rewrite the devtwin plugin file ~/.config/opencode/plugins/devtwin.js`. Without `~/.config/opencode`, the instruction plan shows `conflict` with the reason `agent-folder-missing`.
 
 ## Add another repository
 
@@ -372,6 +429,6 @@ If you set up live mode under the old devctx name, move it with [Migrate from de
 
 ## If the store is lost
 
-If you have a backup, [restore it](#restore-a-backup) into a new folder and move it into place. Without the store, installed `devtwin-*` entries have no matching journal, become unowned, and devtwin refuses to update or remove them. Remove them by hand: check each entry is a real directory holding only `SKILL.md` and `.devtwin-owned.json`, that the receipt's `kind` is `skill-bundled` and its `configId` is your old one, then move it into a private holding folder. Move the old `live.json` aside too, since `live init` refuses an existing config or a non-empty store, and start again from step 5.
+If you have a backup, [restore it](#restore-a-backup) into a new folder and move it into place. Without the store, installed `devtwin-*` entries have no matching journal, become unowned, and devtwin refuses to update or remove them. Remove them by hand: check each entry is a real directory holding only `SKILL.md` and `.devtwin-owned.json`, that the receipt's `kind` is `skill-bundled` and its `configId` is your old one, then move it into a private holding folder. Move the old `live.json` aside too, since `live init` refuses an existing config or a non-empty store, and start again from step 5. The OpenCode plugin file `~/.config/opencode/plugins/devtwin.js` is unowned then too: a hook install reports it as `conflict` until you move it away by hand.
 
 The approved digest catches accidental edits to `live.json`, not deliberate tampering by your own user account. See the [security model](/docs/security/security-model/).

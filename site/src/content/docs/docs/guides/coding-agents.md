@@ -1,6 +1,6 @@
 ---
 title: Use with coding agents
-description: Install the bundled devtwin skills for Claude Code, Codex, Gemini CLI and Antigravity CLI, check their state, remove them cleanly and recover from an interrupted install.
+description: Install the bundled devtwin skills for Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode, check their state, remove them cleanly and recover from an interrupted install.
 sidebar:
   label: Coding agents
 ---
@@ -15,12 +15,13 @@ In live mode, `agents install --hooks` also adds the devtwin agent hook, which d
 | --- | --- | --- |
 | Claude Code | `.claude/skills` (or `$CLAUDE_CONFIG_DIR/skills`) | `devtwin-onboard`, `devtwin-resume`, `devtwin-record`, `devtwin-capture` |
 | Codex | `.agents/skills` | the same four |
-| Gemini CLI | `.agents/skills`, shared with Codex | the same four |
+| Gemini CLI | `.agents/skills`, shared with Codex and OpenCode | the same four |
 | Antigravity CLI | `.gemini/config/skills` | the same four |
+| OpenCode | `.agents/skills`, shared with Codex and Gemini CLI | the same four |
 
 Each installed entry is a folder holding `SKILL.md` and a `.devtwin-owned.json` ownership receipt. devtwin only ever writes, updates or removes `devtwin-*` entries it owns. Codex skills go to `.agents/skills`, never `.codex/skills`.
 
-Gemini CLI reads `.agents/skills` as an alias of `.gemini/skills`, and the alias wins. So one install serves Codex and Gemini CLI. With both agents selected, the preview plans each skill once and names the other agent in `shared`. In live mode, an uninstall for one of them keeps the entries while the other is in the live config.
+Gemini CLI reads `.agents/skills` as an alias of `.gemini/skills`, and the alias wins. OpenCode 2.x reads `.agents/skills` too. So one install serves Codex, Gemini CLI and OpenCode. With two or three of them selected, the preview plans each skill once and names the other agents in `shared`. In live mode, an uninstall for one of them keeps the entries while another one is in the live config. See [OpenCode](/docs/guides/live-mode/#opencode).
 
 Antigravity CLI (`agy`) has a skills folder of its own, `.gemini/config/skills`. In live mode the live config must name the agent first: name it at `live init`, or add it later with [`live add-agent`](/docs/reference/cli/#live-add-agent). See [Antigravity CLI](/docs/guides/live-mode/#antigravity-cli).
 

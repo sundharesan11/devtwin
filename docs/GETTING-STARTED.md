@@ -118,9 +118,9 @@ Give `setup apply` the same flags as the plan that you approved, and that plan's
 | Step | What it does |
 | --- | --- |
 | `live-folder` | Checks the live config and `init`. It only reads. |
-| `skills-claude`, `skills-codex`, `skills-gemini`, `skills-antigravity` | Installs the bundled skills for that agent (`agents install`). A step for an agent that the live config does not name is skipped. |
-| `write-classes-hooks` | Approves the hook settings file of each agent in the live config (`live write-classes`). |
-| `hooks-claude`, `hooks-codex`, `hooks-gemini`, `hooks-antigravity` | Installs the hook entries for that agent (`agents install --hooks`). For Codex, trust each entry in `/hooks` after the install. |
+| `skills-claude`, `skills-codex`, `skills-gemini`, `skills-antigravity`, `skills-opencode` | Installs the bundled skills for that agent (`agents install`). A step for an agent that the live config does not name is skipped. |
+| `write-classes-hooks` | Approves the hook settings file or the plugin file of each agent in the live config (`live write-classes`). OpenCode has a plugin file. |
+| `hooks-claude`, `hooks-codex`, `hooks-gemini`, `hooks-antigravity`, `hooks-opencode` | Installs the hook entries for that agent (`agents install --hooks`). For Codex, trust each entry in `/hooks` after the install. For OpenCode, it writes one plugin file, `~/.config/opencode/plugins/devtwin.js`. |
 | `hook-verify` | Writes the kit receipt that the hook trusts (`hook verify`). |
 | `paths-confirm` | Records the kit and config paths, so skills stop asking for them (`paths confirm`). An owner step. |
 | `profile` | Writes your personal profile (`profile apply`). |
