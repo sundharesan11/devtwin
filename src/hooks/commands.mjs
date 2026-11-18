@@ -18,7 +18,7 @@ import { shellCommands } from "./shell-words.mjs";
 import { adapter, isAgent } from "../agents/adapters/index.mjs";
 import { readSummary, renderSummary } from "../context/summary.mjs";
 import { writeStub, readStub, stubLine } from "./stub.mjs";
-import { sessionKey, readSession, writeSession, removeSession, pruneSessions, logBudget, logHook, budgetReport, readNoteState, writeNoteState } from "./session.mjs";
+import { sessionKey, readSession, writeSession, removeSession, pruneSessions, logBudget, logHook, budgetReport, readNoteState, writeNoteState, MAX_MORE_PLACES } from "./session.mjs";
 // U7: `devtwin hook --event <event> --agent <agent> --pilot <path>` (KTD6, KTD8, KTD17, KTD22, KTD23). It reads the
 // agent's JSON payload on stdin and prints the agent's additionalContext JSON, or nothing. It never loads or checks the
 // full pilot: it reads stateRoot from the pilot file and trusts the kit receipt. It takes no lock, never rebuilds the
@@ -152,11 +152,16 @@ async function deliver(stateRoot, { agent, key, found, matches, now, mode }) {
   return { text: blockText(found, sent, overflow), lines: sent.length, overflow: overflow ? 1 : 0, ids: sent.map((m) => m.id), next: { ...state, delivered: [...state.delivered, ...sent.map((m) => m.id)], lines: state.lines + sent.length, overflowed: state.overflowed || Boolean(overflow) } };
 }
 // Deferred lessons, for an agent whose post-tool hook cannot print context. The session file gets two optional fields:
-// pending, at most four held lessons as { id, scope, root }, and pendingMore, { scope, root, count } for the overflow
-// line. scope and root are the bound scope and the worktree root of the call that held the lesson.
+// pending, at most four held lessons as { id, scope, root }, and pendingMore, the counts for the overflow line as
+// { scope, root, count }. scope and root are the bound scope and the worktree root of the call that held the lesson;
+// together they are its place.
 // A hold stores the fresh matches and prints nothing: the result has no text. A held lesson is not delivered and does
 // not count in lines, but it keeps one of the four slots, so holds and flushes together never pass the cap. An ID that
 // is delivered or held is not held again.
+// pendingMore keeps one count for each place, in at most MAX_MORE_PLACES entries. A hold changes only the entry of its
+// own place, so a hold in one worktree root never replaces the count of another root. A new place goes last. When
+// that makes one entry more than the bound, the first entry, which is the oldest, is dropped: that place then gets no
+// overflow line from its count. A flush uses and removes only the entry of its own place.
 // A flush prints the lessons held for this scope and root, with the prompt's own matches after them. Each held lesson
 // is rendered from the current index after the project filter a fresh match gets, and one whose ID left the index is
 // dropped. A lesson held for another root stays held and keeps its slot, so it is never printed into another project.
@@ -165,17 +170,20 @@ async function deliver(stateRoot, { agent, key, found, matches, now, mode }) {
 // not held. runHook reads the file again after a hold and holds a missing lesson once more; one that is still lost is
 // delayed to the next tool call that matches it.
 function deferred(state, { found, matches, now, hold }) {
-  const scope = found.repo.scope, root = found.root, pending = state.pending ?? [], more = state.pendingMore ?? null;
-  const here = (e) => e.scope === scope && e.root === root, moreHere = more && here(more) ? more.count : 0;
+  const scope = found.repo.scope, root = found.root, pending = state.pending ?? [], more = state.pendingMore ?? [];
+  const here = (e) => e.scope === scope && e.root === root, moreHere = more.find(here)?.count ?? 0;
   // The next state: the two fields are left out when they are empty.
-  const next = ({ pending: _held, pendingMore: _count, ...rest }, list, count) => ({ ...rest, ...(list.length ? { pending: list } : {}), ...(count ? { pendingMore: count } : {}) });
+  const next = ({ pending: _held, pendingMore: _counts, ...rest }, list, counts) => ({ ...rest, ...(list.length ? { pending: list } : {}), ...(counts.length ? { pendingMore: counts } : {}) });
   if (hold) {
     const fresh = matches.filter((m) => !state.delivered.includes(m.id) && !pending.some((e) => e.id === m.id));
     const kept = fresh.slice(0, Math.max(0, LINE_CAP - state.lines - pending.length)), over = fresh.length - kept.length;
-    // One overflow count is kept: the larger one for this root, and a newer root's count replaces an older root's.
+    // The overflow count of this place: the larger of the stored one and the new one.
     const count = over > 0 && !state.overflowed ? Math.max(over, moreHere) : 0;
     if (!kept.length && (!count || count === moreHere)) return null;
-    return { next: next(state, [...pending, ...kept.map((m) => ({ id: m.id, scope, root }))], count ? { scope, root, count } : more) };
+    // Every other place keeps its entry. This place's entry stays where it is; a new place goes last and the bound
+    // drops from the front.
+    const counts = !count ? more : moreHere ? more.map((e) => here(e) ? { scope, root, count } : e) : [...more, { scope, root, count }].slice(-MAX_MORE_PLACES);
+    return { next: next(state, [...pending, ...kept.map((m) => ({ id: m.id, scope, root }))], counts) };
   }
   const mine = pending.filter(here), rest = pending.filter((e) => !here(e)), project = found.repo.project;
   const held = mine.map((e) => found.index.entries.find((x) => x.id === e.id)).filter((x) => x && (x.reach !== "project" || x.project === project) && !state.delivered.includes(x.id))
@@ -183,7 +191,7 @@ function deferred(state, { found, matches, now, hold }) {
   const all = [...held, ...matches.filter((m) => !state.delivered.includes(m.id) && !held.some((h) => h.id === m.id))];
   const sent = all.slice(0, Math.max(0, LINE_CAP - state.lines - rest.length)), over = all.length - sent.length + moreHere;
   const overflow = over > 0 && !state.overflowed ? overflowLine(over) : null;
-  const after = next({ ...state, delivered: [...state.delivered, ...sent.map((m) => m.id)], lines: state.lines + sent.length, overflowed: state.overflowed || Boolean(overflow) }, rest, moreHere ? null : more);
+  const after = next({ ...state, delivered: [...state.delivered, ...sent.map((m) => m.id)], lines: state.lines + sent.length, overflowed: state.overflowed || Boolean(overflow) }, rest, more.filter((e) => !here(e)));
   // Nothing to print: a dropped entry still leaves the file, in a write with no output.
   if (!sent.length && !overflow) return mine.length || moreHere ? { next: after } : null;
   return { text: blockText(found, sent, overflow), lines: sent.length, overflow: overflow ? 1 : 0, ids: sent.map((m) => m.id), next: after };
@@ -350,10 +358,11 @@ async function noteStep({ stateRoot, pilot, agent, key, found, paths, edit, repo
 }
 // runGit is the test seam for the stop stub's one Git call (src/hooks/stub.mjs).
 // The neutral reply: Antigravity CLI needs exactly one JSON object from every hook run, and it denies the tool when a
-// pre-tool hook prints nothing useful. So an adapter with hooks.neutral gets that reply, by devtwin's internal event
-// name, on every path that printed nothing once the agent and the event are known: nothing to say, no state root, a
-// bad payload, a receipt problem or a thrown error. It is never a second object: a deny or a context block that was
-// printed stands alone, even when a later state write throws. An adapter without neutral keeps its empty output.
+// pre-tool hook prints an empty object or an empty decision. So an adapter with hooks.neutral gets that reply, by
+// devtwin's internal event name, on every path that printed nothing once the agent and the event are known: nothing
+// to say, no state root, a bad payload, a receipt problem or a thrown error. It is never a second object: a deny or a
+// context block that was printed stands alone, even when a later state write throws. An adapter without neutral keeps
+// its empty output.
 export async function runHook(args, { stdin = process.stdin, stdout = process.stdout, now = () => new Date(), kitRoot, runGit } = {}) {
   let values;
   try { values = parseArgs({ args, options: { event: { type: "string" }, agent: { type: "string" }, pilot: { type: "string" } }, strict: true, allowPositionals: false }).values; }

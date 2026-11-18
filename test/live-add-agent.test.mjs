@@ -331,6 +331,7 @@ test("after live add-agent, one setup batch installs the agent's skills and hook
   const add = await h.ok([...ROUTE, "--pilot", h.liveConfig, "--agent", "antigravity"]);
   await h.ok([...ROUTE, "--pilot", h.liveConfig, "--agent", "antigravity", "--apply", "--plan-fingerprint", add.fingerprint]);
   assert.ok(h.dialogs.at(-1).body.includes("the next setup batch installs the skills and hooks for this agent"), h.dialogs.at(-1).body);
+  assert.ok(h.dialogs.at(-1).body.includes("The instruction plan then includes ~/.gemini/GEMINI.md. When that file is not an approved instruction target"), h.dialogs.at(-1).body);
   assert.equal(await treeSnapshot(join(h.home, ".gemini")), gemini, "the route writes nothing in the agent folder");
   for (const step of await steps(["write-classes-hooks", ...agentSteps])) assert.deepEqual([step.done, step.skipped, step.problem], [false, undefined, undefined], step.id);
   // The next batch: the hook settings file joins the hookTargets write class first, then the skills, then the hooks.

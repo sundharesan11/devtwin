@@ -186,7 +186,7 @@ devtwin agents uninstall --hooks --pilot "$LIVE_CONFIG" --agent antigravity
 devtwin agents uninstall --pilot "$LIVE_CONFIG" --agent antigravity
 ```
 
-Uninstall with a kit that knows the agent, before any move to another kit. An earlier kit refuses the agent's name, so it cannot remove those entries. It also treats a hook journal that names the agent as an incomplete run. The live config still names the agent after the uninstall.
+Uninstall with a kit that knows the agent, before any move to another kit. An earlier kit refuses the agent's name, so it cannot remove those entries. It also treats a hook journal that names the agent as an incomplete run. The live config still names the agent after the uninstall. `setup status` then shows the steps `skills-antigravity` and `hooks-antigravity` as pending again. A setup batch with `--all-pending` installs them again. To keep them out, run the batch with `--steps` and name only the steps that you want.
 
 ## Move from a Git clone to a package kit
 

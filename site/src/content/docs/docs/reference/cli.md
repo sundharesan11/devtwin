@@ -229,7 +229,7 @@ Adds one repository to the live config.
 
 Adds one agent to an existing live config. It adds the agent's skills folder to `live.skillDirs` and changes no other key. Use it when the live config was made before you used that agent. The preview shows the agent, its skills folder and the folders before and after.
 
-The apply shows the owner dialog "Add an agent to the live config". The dialog names the agent and the exact skills folder that devtwin may then write `devtwin-*` entries in. The apply is owner-only: the hook denies it from an agent shell, and the preview stays open. A denied dialog writes nothing.
+The apply shows the owner dialog "Add an agent to the live config". The dialog names the agent and the exact skills folder that devtwin may then write `devtwin-*` entries in. It also names the agent's instruction file, which the instruction plan includes from then on. The apply is owner-only: the hook denies it from an agent shell, and the preview stays open. A denied dialog writes nothing.
 
 | Flag | |
 | --- | --- |

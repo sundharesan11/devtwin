@@ -338,7 +338,7 @@ test("antigravity flushes held lessons on a PreInvocation with an empty prompt a
   assert.deepEqual(await state(s), fresh({ delivered: [file], lines: 1 }));
   // Six lessons match the next file. One line is used, so three are held and three are counted for the overflow line.
   assert.equal(await step("post-tool", edited(s.repo, "src/feature/a.mjs")), EMPTY);
-  const waiting = fresh({ delivered: [file], lines: 1, pending: sorted.slice(0, 3).map(held), pendingMore: { scope: SCOPE, root: s.repo, count: 3 } });
+  const waiting = fresh({ delivered: [file], lines: 1, pending: sorted.slice(0, 3).map(held), pendingMore: [{ scope: SCOPE, root: s.repo, count: 3 }] });
   assert.deepEqual(await state(s), waiting);
   // Every slot is reserved: a second hold keeps nothing more.
   assert.equal(await step("post-tool", edited(s.repo, "src/feature/b.mjs")), EMPTY);
@@ -414,6 +414,68 @@ test("antigravity does not print a held lesson again after a prompt in another w
   assert.deepEqual((await jsonLines(budgetLogPath(s.stateRoot))).map((r) => [r.event, r.lines, r.lessons]), [["UserPromptSubmit", 1, [id]]]);
 });
 
+test("antigravity keeps one overflow count for each worktree root", async (t) => {
+  const s = await store(t, { lessons: [1, 2, 3, 4, 5, 6].map((n) => ["Feature lesson " + n, { paths: ["src/feature/**"] }]) });
+  const sorted = [...s.ids].sort(), kept = sorted.slice(0, 4);
+  await fixtureGit(s.repo, ["worktree", "add", "-q", "-b", "child", join(s.reposDir, "atlas-linked")]);
+  const linked = await realpath(join(s.reposDir, "atlas-linked")), count = (root, n) => ({ scope: SCOPE, root, count: n });
+  // Six lessons match one file. The hold in the first root keeps four and counts two for the overflow line.
+  assert.equal(await agy(s, "post-tool", edited(s.repo, "src/feature/a.mjs")), EMPTY);
+  const waiting = fresh({ pending: kept.map((id) => ({ id, scope: SCOPE, root: s.repo })), pendingMore: [count(s.repo, 2)] });
+  assert.deepEqual(await state(s), waiting);
+  // The same call from the linked root finds the other two, keeps none (no slot is free) and counts them for its own
+  // root. The count of the first root stays.
+  assert.equal(await agy(s, "post-tool", edited(linked, "src/feature/a.mjs")), EMPTY);
+  assert.deepEqual(await state(s), { ...waiting, pendingMore: [count(s.repo, 2), count(linked, 2)] });
+  // The same two holds again change nothing.
+  assert.equal(await agy(s, "post-tool", edited(s.repo, "src/feature/a.mjs")), EMPTY);
+  assert.equal(await agy(s, "post-tool", edited(linked, "src/feature/a.mjs")), EMPTY);
+  assert.deepEqual(await state(s), { ...waiting, pendingMore: [count(s.repo, 2), count(linked, 2)] });
+  // The flush in the first root prints its four lines and its overflow line, and leaves the count of the linked root.
+  const first = await agy(s, "user-prompt", invocation(s.repo, ""));
+  assert.equal(first, inject([HEAD, ...kept.map(s.line), more(2)].join("\n")));
+  assert.equal(indexLines(first).length, 4);
+  const full = fresh({ delivered: kept, lines: 4, overflowed: true });
+  assert.deepEqual(await state(s), { ...full, pendingMore: [count(linked, 2)] });
+  // The flush in the linked root prints nothing: the cap is full and the one overflow line was printed. Its count goes.
+  assert.equal(await agy(s, "user-prompt", invocation(linked, "", { invocationNum: 1 })), EMPTY);
+  assert.deepEqual(await state(s), full);
+  assert.deepEqual((await jsonLines(budgetLogPath(s.stateRoot))).map((r) => [r.event, r.lines, r.overflow, r.lessons]), [["UserPromptSubmit", 4, 1, kept]]);
+});
+
+test("antigravity keeps at most four overflow counts and drops the count of the oldest place", async (t) => {
+  const s = await store(t, { lessons: [["Migrations before seeds", { paths: ["db/migrations/**"] }], ...[1, 2, 3, 4, 5, 6].map((n) => ["Feature lesson " + n, { paths: ["src/feature/**"] }])] });
+  const [file, ...features] = s.ids, kept = [...features].sort().slice(0, 4), held = (id) => ({ id, scope: SCOPE, root: s.repo });
+  // Counts for four other places, oldest first. Their roots are folders under the sandbox that no call comes from.
+  const count = (root, n) => ({ scope: SCOPE, root, count: n }), others = [1, 2, 3, 4].map((n) => count(join(s.sandbox, "other-root-" + n), n + 4));
+  await mkdir(sessionsDir(s.stateRoot), { recursive: true, mode: 0o700 });
+  const put = (conversationId, extra) => writeFile(sessionFile(s, conversationId), JSON.stringify({ ...fresh(extra), updatedAt: "2026-10-01T00:00:00.000Z" }) + "\n", { mode: 0o600 });
+  const hold = async (conversationId, rel) => assert.equal(await agy(s, "post-tool", edited(s.repo, rel, { conversationId })), EMPTY);
+  // A hold in a fifth place: its count goes last, and the first entry, the oldest, is dropped.
+  await put("agy-fifth-place", { pendingMore: others });
+  await hold("agy-fifth-place", "src/feature/a.mjs");
+  const five = fresh({ pending: kept.map(held), pendingMore: [...others.slice(1), count(s.repo, 2)] });
+  assert.deepEqual(await state(s, "agy-fifth-place"), five);
+  // The same hold again drops no other entry.
+  await hold("agy-fifth-place", "src/feature/a.mjs");
+  assert.deepEqual(await state(s, "agy-fifth-place"), five);
+  // The flush there uses and removes its own count, and the other three stay.
+  assert.equal(await agy(s, "user-prompt", invocation(s.repo, "", { conversationId: "agy-fifth-place" })), inject([HEAD, ...kept.map(s.line), more(2)].join("\n")));
+  assert.deepEqual(await state(s, "agy-fifth-place"), fresh({ delivered: kept, lines: 4, overflowed: true, pendingMore: others.slice(1) }));
+  // A place that has one of the four entries: the hold raises its count where it is and drops nothing.
+  await put("agy-own-place", { pendingMore: [count(s.repo, 1), ...others.slice(0, 3)] });
+  await hold("agy-own-place", "src/feature/a.mjs");
+  assert.deepEqual(await state(s, "agy-own-place"), fresh({ pending: kept.map(held), pendingMore: [count(s.repo, 2), ...others.slice(0, 3)] }));
+  // A stored count that is larger stays.
+  await put("agy-larger-count", { pendingMore: [...others.slice(0, 3), count(s.repo, 5)] });
+  await hold("agy-larger-count", "src/feature/a.mjs");
+  assert.deepEqual(await state(s, "agy-larger-count"), fresh({ pending: kept.map(held), pendingMore: [...others.slice(0, 3), count(s.repo, 5)] }));
+  // A hold with no overflow adds no count, so the four entries of the other places stay.
+  await put("agy-no-overflow", { pendingMore: others });
+  await hold("agy-no-overflow", FILE);
+  assert.deepEqual(await state(s, "agy-no-overflow"), fresh({ pending: [held(file)], pendingMore: others }));
+});
+
 test("antigravity marks a stale held lesson on the flush", async (t) => {
   const s = await store(t, { lessons: [["Migrations before seeds", { paths: ["db/migrations/**"] }], ["Migrations stay small", { paths: ["db/migrations/**"] }]] });
   const [due, later] = s.ids;
@@ -448,17 +510,26 @@ test("an older session file still loads, and out-of-bounds pending fields make t
   const claude = await run(s, "claude", "pre-tool", { session_id: "older-session", cwd: s.repo, hook_event_name: "PreToolUse", tool_name: "Edit", tool_input: { file_path: join(s.repo, FILE), old_string: "a", new_string: "b" } });
   assert.equal(claude.out, contextOut("claude", "pre-tool", HEAD + "\n" + s.line(id)));
   assert.deepEqual(JSON.parse(await readFile(join(dir, sessionKey("claude", "older-session") + ".json"), "utf8")), { ...older("claude"), delivered: ["rec_" + "0".repeat(24), id], lines: 2, updatedAt: now().toISOString() });
-  // Within bounds: up to four held entries and one overflow count.
+  // Within bounds: up to four held entries, and up to four overflow counts with one for each place (a scope and a
+  // root). The same root in two scopes is two places.
   const entry = { id: "rec_" + "a".repeat(24), scope: SCOPE, root: "/w/example" }, count = { scope: SCOPE, root: "/w/example", count: 2 };
-  for (const extra of [{ pending: [] }, { pending: [entry] }, { pending: [entry, entry, entry, entry], pendingMore: count }, { pendingMore: count }]) {
+  const places = [1, 2, 3, 4, 5].map((n) => withField(count, "root", "/w/example-" + n));
+  for (const extra of [{ pending: [] }, { pending: [entry] }, { pending: [entry, entry, entry, entry], pendingMore: [count] }, { pendingMore: [count] }, { pendingMore: [] }, { pendingMore: places.slice(0, 4) },
+    { pendingMore: [count, withField(count, "scope", "sample")] }, { pendingMore: [withField(count, "count", 1)] }, { pendingMore: [withField(count, "count", Number.MAX_SAFE_INTEGER)] }]) {
     const value = { ...fresh(extra), updatedAt: "2026-10-01T00:00:00.000Z" };
     assert.deepEqual(await readSession(s.stateRoot, "antigravity", await put("antigravity", "in-bounds", value)), value, JSON.stringify(extra));
   }
   // Out of bounds: the whole file is corrupt, as a file cut short is.
   const bad = [{ pending: null }, { pending: {} }, { pending: "rec" }, { pending: [entry, entry, entry, entry, entry] }, { pending: [null] }, { pending: [[]] }, { pending: [withField(entry, "id", 7)] }, { pending: [withField(entry, "id", "")] },
     { pending: [withField(entry, "id", "r".repeat(129))] }, { pending: [{ scope: SCOPE, root: "/w/example" }] }, { pending: [withField(entry, "scope", "Not A Scope")] }, { pending: [withField(entry, "scope", 7)] }, { pending: [withField(entry, "root", "relative/root")] },
-    { pending: [withField(entry, "root", "/" + "r".repeat(4096))] }, { pending: [withField(entry, "root", null)] }, { pendingMore: null }, { pendingMore: [] }, { pendingMore: "3" }, { pendingMore: withField(count, "count", 0) }, { pendingMore: withField(count, "count", -1) },
-    { pendingMore: withField(count, "count", 1.5) }, { pendingMore: withField(count, "count", "2") }, { pendingMore: withField(count, "root", "relative") }, { pendingMore: withField(count, "scope", "") }, { pendingMore: { root: "/w/example", count: 1 } }];
+    { pending: [withField(entry, "root", "/" + "r".repeat(4096))] }, { pending: [withField(entry, "root", null)] }, { pendingMore: null }, { pendingMore: "3" }, { pendingMore: {} },
+    // The single-object form of pendingMore, which no released kit wrote, is not a list.
+    { pendingMore: count }, { pendingMore: { 0: count, length: 1 } },
+    // More than four entries, and two entries for one place (with the same count or another one).
+    { pendingMore: places }, { pendingMore: [count, count] }, { pendingMore: [count, withField(count, "count", 3)] }, { pendingMore: [places[0], count, places[1], count] },
+    { pendingMore: [null] }, { pendingMore: [[]] }, { pendingMore: [count, "3"] }, { pendingMore: [withField(count, "count", 0)] }, { pendingMore: [places[0], withField(count, "count", 0)] }, { pendingMore: [withField(count, "count", -1)] },
+    { pendingMore: [withField(count, "count", 1.5)] }, { pendingMore: [withField(count, "count", "2")] }, { pendingMore: [withField(count, "count", Number.MAX_SAFE_INTEGER + 1)] }, { pendingMore: [{ scope: SCOPE, root: "/w/example" }] },
+    { pendingMore: [withField(count, "root", "relative")] }, { pendingMore: [withField(count, "root", "/" + "r".repeat(4096))] }, { pendingMore: [withField(count, "scope", "")] }, { pendingMore: [withField(count, "scope", "Not A Scope")] }, { pendingMore: [{ root: "/w/example", count: 1 }] }];
   for (const extra of bad) assert.deepEqual(await readSession(s.stateRoot, "antigravity", await put("antigravity", "out-of-bounds", fresh(extra))), { corrupt: true }, JSON.stringify(extra));
   // Through the hook: the corrupt file is removed, the call prints the neutral object, and the next call starts fresh.
   await put("antigravity", "out-of-bounds", fresh({ pending: [entry, entry, entry, entry, entry] }));
@@ -519,4 +590,24 @@ test("overlapping Antigravity holds in one conversation keep every held lesson",
   const flushed = await state(s, "agy-overlap-three");
   assert.deepEqual({ ...flushed, delivered: [...flushed.delivered].sort() }, fresh({ delivered: [...s.ids].sort(), lines: 3 }));
   assert.equal(await agy(s, "user-prompt", invocation(s.repo, "", { conversationId: "agy-overlap-three", invocationNum: 1 })), EMPTY);
+});
+
+test("overlapping Antigravity holds from two worktree roots keep the overflow count of each root", async (t) => {
+  const s = await store(t, { lessons: [1, 2, 3, 4, 5, 6].map((n) => ["Feature lesson " + n, { paths: ["src/feature/**"] }]) });
+  const kept = [...s.ids].sort().slice(0, 4), byRoot = (a, b) => a.root < b.root ? -1 : 1;
+  await fixtureGit(s.repo, ["worktree", "add", "-q", "-b", "child", join(s.reposDir, "atlas-linked")]);
+  const linked = await realpath(join(s.reposDir, "atlas-linked")), roots = [s.repo, linked];
+  // Both calls read the session file before either writes it, and each one writes four held lessons and the count of
+  // its own root. The later write replaces the earlier one. The call that lost reads the file again and adds its count
+  // next to the other root's count. Whichever write is the last one, the four lessons are held for one root.
+  assert.deepEqual(await Promise.all(roots.map((root) => agy(s, "post-tool", edited(root, "src/feature/a.mjs")))), [EMPTY, EMPTY]);
+  const after = await state(s);
+  assert.deepEqual([...after.pendingMore].sort(byRoot), roots.map((root) => ({ scope: SCOPE, root, count: 2 })).sort(byRoot));
+  assert.deepEqual(after.pending.map((e) => e.id), kept);
+  assert.equal(new Set(after.pending.map((e) => e.root)).size, 1);
+  // The root that holds the lessons prints them with its overflow line. The other root then has nothing to print.
+  const [holder] = roots.filter((root) => root === after.pending[0].root), [other] = roots.filter((root) => root !== holder);
+  assert.equal(await agy(s, "user-prompt", invocation(holder, "")), inject([HEAD, ...kept.map(s.line), more(2)].join("\n")));
+  assert.equal(await agy(s, "user-prompt", invocation(other, "", { invocationNum: 1 })), EMPTY);
+  assert.deepEqual(await state(s), fresh({ delivered: kept, lines: 4, overflowed: true }));
 });

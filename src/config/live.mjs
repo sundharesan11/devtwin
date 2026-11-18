@@ -154,7 +154,8 @@ const addAgent = (agent, ctx) => (before) => {
 };
 // The owner dialog names the agent and the one folder that devtwin may write in after the change.
 const agentDialog = ({ agent, skillDir }) => ({ title: "Add an agent to the live config", body: ["Agent: " + adapter(agent).name + " (" + agent + ")", "Skills folder: " + skillDir, "",
-  "devtwin may then write devtwin-* entries in this folder. This change installs nothing: the next setup batch installs the skills and hooks for this agent, after its own approval."].join("\n") });
+  "devtwin may then write devtwin-* entries in this folder. This change installs nothing: the next setup batch installs the skills and hooks for this agent, after its own approval.",
+  "The instruction plan then includes " + adapter(agent).instructions.display + ". When that file is not an approved instruction target, instructions apply stops until you approve it with live write-classes."].join("\n") });
 // U45: --commit <sha> names a Git kit and --kit <version>+<64 hex> a package kit; exactly one of the two.
 function requestedKit(input) {
   if ((input.commit === undefined) === (input.kit === undefined)) invalid("kit");

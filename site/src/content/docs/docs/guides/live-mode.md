@@ -299,7 +299,7 @@ node "$KIT/bin/devtwin.mjs" live add-agent --pilot "$LIVE_CONFIG" --agent antigr
 - Each apply is an owner action. An agent can run the previews, and the devtwin hook denies the applies from an agent shell.
 - A pinned kit older than this route answers with "Unknown command". Pin a kit that has it first with `live set-kit`; see [Upgrade the kit](#upgrade-the-kit).
 - Until you add the agent, `setup status` shows its steps as skipped, with the reason "agent not in the live config".
-- No command removes an agent from a live config. A kit that does not know the agent refuses the config, so you cannot go back to such a kit afterwards. To stop devtwin for the agent, uninstall its hooks and its skills with `agents uninstall`. The [upgrade guide](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md#roll-back-after-you-add-an-agent) has the details.
+- No command removes an agent from a live config. A kit that does not know the agent refuses the config, so you cannot go back to such a kit afterwards. To stop devtwin for the agent, uninstall its hooks and its skills with `agents uninstall`. Their setup steps are then pending again, and a batch with `--all-pending` installs them again; use `--steps` to leave them out. The [upgrade guide](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md#roll-back-after-you-add-an-agent) has the details.
 
 ## Add another repository
 

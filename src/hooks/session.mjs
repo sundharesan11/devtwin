@@ -37,13 +37,17 @@ export async function writeNoteState(stateRoot, key, state, now) {
 }
 const fresh = (agent) => ({ schemaVersion: 1, agent, delivered: [], lines: 0, overflowed: false });
 // Deferred lessons (deferred in src/hooks/commands.mjs): pending lists at most four held lessons as { id, scope, root },
-// and pendingMore is the count for one overflow line as { scope, root, count }. Both are optional, so a session file
-// from an earlier kit still loads. Any other shape is a damaged file.
+// and pendingMore lists the overflow counts as { scope, root, count }: at most MAX_MORE_PLACES entries, and at most one
+// for each place (a scope and a root). Both are optional, so a session file from an earlier kit still loads. Any other
+// shape is a damaged file. That includes a pendingMore that is one object and not a list: no released kit wrote it.
+export const MAX_MORE_PLACES = 4;
 const MAX_PENDING = 4, MAX_ID = 128, MAX_ROOT = 4096;
 const text = (value, max) => typeof value === "string" && value.length > 0 && value.length <= max;
 const place = (e) => e !== null && typeof e === "object" && typeof e.scope === "string" && SCOPE_ID.test(e.scope) && text(e.root, MAX_ROOT) && isAbsolute(e.root);
+// A scope ID holds no NUL character, so the joined key is the same only for the same scope and root.
+const onePerPlace = (list) => new Set(list.map((e) => e.scope + "\0" + e.root)).size === list.length;
 const validHeld = (s) => (s.pending === undefined || (Array.isArray(s.pending) && s.pending.length <= MAX_PENDING && s.pending.every((e) => place(e) && text(e.id, MAX_ID))))
-  && (s.pendingMore === undefined || (place(s.pendingMore) && Number.isSafeInteger(s.pendingMore.count) && s.pendingMore.count >= 1));
+  && (s.pendingMore === undefined || (Array.isArray(s.pendingMore) && s.pendingMore.length <= MAX_MORE_PLACES && s.pendingMore.every((e) => place(e) && Number.isSafeInteger(e.count) && e.count >= 1) && onePerPlace(s.pendingMore)));
 const valid = (s, agent) => s?.schemaVersion === 1 && s.agent === agent && Array.isArray(s.delivered) && s.delivered.length <= MAX_DELIVERED && s.delivered.every((id) => typeof id === "string") && Number.isInteger(s.lines) && s.lines >= 0 && typeof s.overflowed === "boolean" && validHeld(s);
 // The session state, a fresh state when none exists, or { corrupt: true } for a damaged file (such as one cut short
 // when a run was killed). The caller removes a corrupt file and emits nothing for that event.

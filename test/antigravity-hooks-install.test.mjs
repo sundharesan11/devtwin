@@ -54,7 +54,7 @@ test("antigravity hook entries are flat handlers for lifecycle events and matche
   assert.deepEqual(plan.actions[0].changes, EVENTS.map((event) => ({ event, op: "add", entry: exact[event][0] })));
 });
 
-test("antigravity hooks install under the devtwin name in hooks.json, keep another named hook and its bytes, and are idempotent", async (t) => {
+test("antigravity hooks install under the devtwin name in hooks.json, keep another named hook and the file's indent, and are idempotent", async (t) => {
   const original = text({ "sample-status": SAMPLE });
   const h = await agyPilot(t, { file: original });
   // Through the real CLI: a preview, then the apply.
@@ -68,7 +68,8 @@ test("antigravity hooks install under the devtwin name in hooks.json, keep anoth
   assert.equal((await cli(h, [...args, "--apply", "--plan-fingerprint", preview.fingerprint])).applied, true);
   const after = await read(h);
   assert.equal(after, text({ "sample-status": SAMPLE, devtwin: h.expected }), "devtwin's entries sit under the devtwin name, after the other hook, with the file's own indent");
-  // Every byte of the other named hook is unchanged: the new file starts with the old one up to that hook's closing brace.
+  // The file is written again as JSON with its own indent. This fixture has that layout already, so the other named
+  // hook's text is unchanged: the new file starts with the old one up to that hook's closing brace.
   assert.ok(after.startsWith(original.slice(0, -"\n}\n".length) + ',\n    "devtwin": {\n        "SessionStart": [\n'), after);
   assert.deepEqual(Object.keys(JSON.parse(after)), ["sample-status", "devtwin"], "no hooks key");
   assert.equal((await lstat(h.file)).mode & 0o777, 0o644);

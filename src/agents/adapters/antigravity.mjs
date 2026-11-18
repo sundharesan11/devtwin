@@ -12,13 +12,15 @@ import { kindOf } from "./claude.mjs";
 //                 model sees the text. PreInvocation fires before every model call, so it stands for a user prompt.
 //   deny          PreToolUse { decision: "deny", reason } blocks the call, and the model reads the reason.
 //   empty reply   PreToolUse {} and { decision: "" } both deny the tool, and { decision: "ask" } follows Antigravity's
-//                 own permission flow. See neutral below.
+//                 own permission flow. A hook that prints no stdout at all lets the tool run. See neutral below.
 //   payload       camelCase keys: hookEventName, conversationId, cwd, workspacePaths, lastUserInput, and toolCall with a
 //                 name and PascalCase args. PostToolUse has an error field and no tool output.
-//   tools         run_command (CommandLine), and read_file, write_file and edit_file (Path).
+//   tools         run_command (CommandLine), and read_file, write_file and edit_file (Path). manage_task sends
+//                 { Action: "send_input", Input, TaskId } to type text into a running command; its other actions
+//                 (status, kill) carry no text.
 //   shells        agy sets ANTIGRAVITY_AGENT and ANTIGRAVITY_CONVERSATION_ID in the shells it starts, not GEMINI_CLI.
 //   global hooks  ~/.gemini/config/hooks.json is read with no approval step.
-// From the docs only, not seen in a session: manage_task, whose send_input action sends text to a running command;
+// From the docs only, not seen in a session:
 // view_file (AbsolutePath), write_to_file, replace_file_content and multi_replace_file_content (TargetFile), list_dir
 // (DirectoryPath), find_by_name (SearchDirectory) and grep_search (SearchPath). parse accepts both name sets. The docs
 // do not say how a matcher is anchored, and they disagree on whether "allow" approves a tool or defers, so devtwin
