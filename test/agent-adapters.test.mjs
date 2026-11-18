@@ -203,7 +203,8 @@ test("gemini instructions write a marker block to GEMINI.md", async (t) => {
   const plan = (await cli(["instructions", "plan"])).result;
   assert.deepEqual(plan.actions.map((a) => [a.agent, a.role, a.path, a.status]), [["gemini", "block", join(h.home, ".gemini/GEMINI.md"), "create"]]);
   assert.equal((await cli(["instructions", "apply", "--plan-fingerprint", plan.fingerprint])).ok, true);
-  assert.match(dialogs[0].body, /Every Claude Code, Codex and Gemini CLI session/);
+  // Antigravity CLI reads the same GEMINI.md, so the dialog names it although no flag did.
+  assert.match(dialogs[0].body, /Every Claude Code, Codex, Gemini CLI and Antigravity CLI session on this machine reads this block:/);
   const text = await readFile(join(h.home, ".gemini/GEMINI.md"), "utf8");
   assert.ok(text.includes(plan.block), "the block itself, not an import");
 });

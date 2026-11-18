@@ -447,6 +447,7 @@
   "test/setup-batch.test.mjs",
   "test/setup-review.test.mjs",
   "test/setup.test.mjs",
+  "test/shared-instructions.test.mjs",
   "test/shell-words.test.mjs",
   "test/skill-acquisition.test.mjs",
   "test/skill-builder.test.mjs",

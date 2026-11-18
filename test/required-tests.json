@@ -943,8 +943,16 @@
   "a failed hold write delays an Antigravity lesson and a failed flush write repeats it once",
   "overlapping Antigravity holds in one conversation keep every held lesson",
   "notes an Antigravity edit posts the developer's own note and prints no report of a teammate's note",
+  "gemini and antigravity share one GEMINI.md block: one action, one edit, and the dialog names both agents",
+  "an instruction plan for one agent of a shared file is unchanged, and a single-path plan keeps its fingerprint shape",
+  "removing the block for one agent keeps it while the other is an active user, and removing both removes it",
+  "an approved hook target with no installed devtwin entries does not keep a shared instruction block",
+  "the instruction re-render after an activity review edits a shared file once",
+  "two instruction targets with one path and different roles are refused",
   "a top-level command in a Claude Code, Codex or Gemini CLI hook entry is not read as a handler",
   "antigravity hooks treat a hand-written copy of devtwin's handler as foreign and keep a devtwin-like handler of another pilot",
   "antigravity does not print a held lesson again after a prompt in another worktree delivered it",
-  "antigravity marks a stale held lesson on the flush"
+  "antigravity marks a stale held lesson on the flush",
+  "the instruction dialog names every agent that reads a planned file, selected or not",
+  "a remove that mixes an own file and a kept shared file writes only the own file"
 ]
