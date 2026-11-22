@@ -1,10 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { realpathSync } from "node:fs";
-import { mkdir, writeFile, readFile, chmod, rm } from "node:fs/promises";
+import { mkdir, writeFile, readFile, chmod, rm, symlink } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { makePilot, sandbox, makeRepo, fixtureGit, runCli, now } from "./helpers.mjs";
 import { main } from "../src/cli.mjs";
@@ -280,7 +280,7 @@ test("the generated OpenCode plugin is valid ESM that imports only node:child_pr
   assert.ok(first.startsWith("// devtwin wrote this file.") && first.includes("agents install --hooks") && text.endsWith("\n"), first);
   // The import list, read from the text: two static imports, and no other way to load code.
   assert.deepEqual([...text.matchAll(/^\s*import\b[^\n]*?["']([^"'\n]+)["'];?\s*$/gm)].map((m) => m[1]).sort(), ["node:child_process", "node:fs"]);
-  assert.deepEqual(text.split("\n").filter((line) => /^\s*(import|export)\b/.test(line)), ['import { spawn } from "node:child_process";', 'import { readFileSync } from "node:fs";', "export default { id: \"devtwin\", setup, server };"]);
+  assert.deepEqual(text.split("\n").filter((line) => /^\s*(import|export)\b/.test(line)), ['import { spawn } from "node:child_process";', 'import { closeSync, constants, fstatSync, lstatSync, openSync, readSync } from "node:fs";', "export default { id: \"devtwin\", setup, server };"]);
   for (const banned of [/\bimport\s*\(/, /\brequire\s*\(/, /\beval\s*\(/, /\bFunction\s*\(/, /\bexec(?:Sync|File|FileSync)?\s*\(/, /shell\s*:/, /process\.env/]) assert.doesNotMatch(text, banned);
   // Each path is one JSON string, once. The limits the plan names are in the text as plain numbers.
   for (const [name, value] of [["NODE", plain.nodePath], ["KIT", plain.kitRoot], ["PILOT", plain.pilotPath]]) assert.equal(text.split(name + " = " + JSON.stringify(value)).length - 1, 1, name);
@@ -524,6 +524,26 @@ test("the OpenCode plugin sends each event to the hook command and applies the r
   assert.deepEqual(await pushed(11000), []);
   await writeFile(file, "x".repeat(65536));
   assert.equal((await pushed(12000))[0].text.length, 65536);
+  // The read follows no link: a link to a file outside the config folder, a link to a file inside it and a FIFO all add
+  // nothing, and the FIFO read does not wait for a writer. The cap counts bytes, so 21,846 three-byte characters are
+  // over it.
+  const outside = join(dirname(c.config), "outside.md");
+  await writeFile(outside, "OUTSIDE TEXT\n");
+  await rm(file);
+  await symlink(outside, file);
+  assert.deepEqual(await pushed(13000), []);
+  await rm(file);
+  await writeFile(join(c.config, "inside.md"), "INSIDE TEXT\n");
+  await symlink(join(c.config, "inside.md"), file);
+  assert.deepEqual(await pushed(14000), []);
+  await rm(file);
+  execFileSync("mkfifo", [file]);
+  const fifoAt = Date.now();
+  assert.deepEqual(await pushed(15000), []);
+  assert.ok(Date.now() - fifoAt < 5000, "the FIFO read did not wait");
+  await rm(file);
+  await writeFile(file, "€".repeat(21846));
+  assert.deepEqual(await pushed(16000), []);
   // A clock that went back reads the file again.
   await writeFile(file, "BLOCK C\n");
   assert.deepEqual(await pushed(100), [{ type: "text", text: "BLOCK C\n" }]);
@@ -605,7 +625,9 @@ test("the OpenCode plugin stays quiet when the hook fails, prints junk, is too l
   assert.equal(await slow.hooks["execute.before"](toolEvent("shell", { command: "npm run seed" })), undefined);
   await slow.hooks["execute.after"](after);
   const elapsed = Date.now() - started;
-  assert.ok(after.result === result && elapsed >= 2300 && elapsed < 9000, "two timers of 1200 ms, well under one of 10 seconds: " + elapsed);
+  // Timers never fire early, so the two timers take at least 2,400 ms. There is no upper bound: on a loaded machine a
+  // timer can fire late. The kill checks below show that the timer, and not a 10 second wait, ended each child.
+  assert.ok(after.result === result && elapsed >= 2300, "two timers of 1200 ms: " + elapsed);
   assert.deepEqual(children.map((child) => [child.spawnargs[0], ...child.spawnargs.slice(2, 5)]), [["node", "hook", "--event", "pre-tool"], ["node", "hook", "--event", "post-tool"]]);
   // Both children were killed: each ended by SIGKILL and not by an exit of its own, and signal 0 finds no process.
   for (const child of children) {

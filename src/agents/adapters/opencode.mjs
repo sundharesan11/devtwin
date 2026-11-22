@@ -119,11 +119,28 @@ const textOf = (reply) => reply !== null && typeof reply.context === "string" ? 
 // installs this file to ~/.config/opencode/plugins and devtwin.md to ~/.config/opencode, and to no other folder. The
 // file is read at most once in REREAD_MS. A missing, unreadable or oversized file adds nothing.
 let block = { at: null, text: "" };
+// Only a regular file of at most MAX_INSTRUCTIONS bytes counts, and the read never follows a link: a link, a folder or
+// a FIFO at that path adds nothing, so the text can come from no other file and the read cannot wait. The open checks
+// that the file is the one lstat saw.
+const NO_FOLLOW = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0);
+function readBlock() {
+  const path = new URL("../devtwin.md", import.meta.url), seen = lstatSync(path);
+  if (!seen.isFile() || seen.size > MAX_INSTRUCTIONS) return "";
+  const fd = openSync(path, NO_FOLLOW);
+  try {
+    const stat = fstatSync(fd);
+    if (!stat.isFile() || stat.dev !== seen.dev || stat.ino !== seen.ino || stat.size > MAX_INSTRUCTIONS) return "";
+    const bytes = Buffer.alloc(stat.size);
+    let size = 0;
+    while (size < bytes.length) { const read = readSync(fd, bytes, size, bytes.length - size, size); if (read === 0) break; size += read; }
+    return bytes.subarray(0, size).toString("utf8");
+  } finally { closeSync(fd); }
+}
 function instructions() {
   const at = Date.now();
   if (block.at === null || at - block.at >= REREAD_MS || at < block.at) {
     block = { at, text: "" };
-    try { const text = readFileSync(new URL("../devtwin.md", import.meta.url), "utf8"); if (text.length <= MAX_INSTRUCTIONS) block.text = text; } catch { /* No file: nothing to add. */ }
+    try { block.text = readBlock(); } catch { /* No file: nothing to add. */ }
   }
   return block.text;
 }
@@ -204,7 +221,7 @@ function content({ kitRoot, pilotPath, nodePath } = {}) {
   return ["// devtwin wrote this file. Do not edit it: `devtwin agents install --hooks` rewrites it.",
     "// It is the OpenCode 2.x plugin that sends each hook event to the devtwin hook command and applies the reply.",
     'import { spawn } from "node:child_process";',
-    'import { readFileSync } from "node:fs";',
+    'import { closeSync, constants, fstatSync, lstatSync, openSync, readSync } from "node:fs";',
     "const NODE = " + JSON.stringify(nodePath) + ", KIT = " + JSON.stringify(kitRoot) + ", PILOT = " + JSON.stringify(pilotPath) + ";",
     "const BEFORE = " + JSON.stringify(BEFORE_TOOLS) + ", AFTER = " + JSON.stringify(AFTER_TOOLS) + ", INPUT_KEYS = " + JSON.stringify(INPUT_KEYS) + ";",
     PLUGIN_BODY].join("\n");
