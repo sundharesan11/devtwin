@@ -203,6 +203,52 @@ test("live add-agent accepts an agent that shares another agent's skills folder"
   failed(await h.add("claude"), "DEVTWIN_GATE_REQUIRED", "live.skillDirs.claude");
 });
 
+test("live init and live add-agent accept opencode with the shared skills folder", async (t) => {
+  // live init: OpenCode alone, and with the two agents that name the same folder. Three agents with one folder is one
+  // carve-out in the fence, not an overlap.
+  for (const agents of [["opencode"], ["codex", "gemini", "opencode"]]) {
+    const first = await liveHome(t, { folders: [".claude/skills", ".agents/skills"] }), folder = join(first.home, ".agents/skills");
+    await first.init(agents);
+    assert.deepEqual((await loadPilot(first.liveConfig, first.context)).live.skillDirs, Object.fromEntries(agents.map((agent) => [agent, folder])), agents.join(" "));
+    assert.equal(existsSync(join(first.home, ".config")), false, "live init makes no OpenCode folder");
+  }
+  // live add-agent: OpenCode joins a config that names Claude Code and Codex, and takes the folder Codex has.
+  const h = await liveHome(t, { folders: [".claude/skills", ".agents/skills"] }), shared = join(h.home, ".agents/skills"), claude = join(h.home, ".claude/skills");
+  await h.init(["claude", "codex"]);
+  const steps = async () => (await h.ok(["setup", "status", "--pilot", h.liveConfig])).steps.filter((s) => s.agent === "opencode").map((s) => [s.id, s.skipped ?? null]);
+  assert.deepEqual(await steps(), [["skills-opencode", "agent not in the live config"], ["hooks-opencode", "agent not in the live config"]]);
+  const preview = await h.add("opencode");
+  assert.equal(preview.json.ok, true, JSON.stringify(preview.json.error));
+  const plan = preview.json.result;
+  assert.deepEqual([plan.kind, plan.agent, plan.skillDir, plan.skillDirs], ["live-add-agent", "opencode", shared, { from: { claude, codex: shared }, to: { claude, codex: shared, opencode: shared } }]);
+  assert.equal(h.dialogs.length, 0);
+  assert.equal((await h.apply("opencode", plan.fingerprint)).json.ok, true);
+  // The dialog names OpenCode, the shared folder and the instruction file that the instruction plan then holds.
+  assert.equal(h.dialogs.length, 1);
+  for (const part of ["Agent: OpenCode (opencode)", "Skills folder: " + shared, "The instruction plan then includes ~/.config/opencode/devtwin.md."]) assert.ok(h.dialogs[0].body.includes(part), part + " in " + h.dialogs[0].body);
+  assert.deepEqual(Object.entries((await readConfig(h.liveConfig)).live.skillDirs), [["claude", claude], ["codex", shared], ["opencode", shared]]);
+  // Gemini CLI joins too: three agents of one config now name the one folder, and the config still loads.
+  const third = await h.add("gemini");
+  assert.deepEqual(third.json.result.skillDirs.to, { claude, codex: shared, gemini: shared, opencode: shared });
+  assert.equal((await h.apply("gemini", third.json.result.fingerprint)).json.ok, true);
+  assert.deepEqual((await loadPilot(h.liveConfig, h.context)).live.skillDirs, { claude, codex: shared, gemini: shared, opencode: shared });
+  assert.equal((await h.cli(["doctor", "--pilot", h.liveConfig])).json.ok, true);
+  // The OpenCode setup steps are no longer skipped, and the three agents share one skills install.
+  assert.deepEqual(await steps(), [["skills-opencode", null], ["hooks-opencode", null]]);
+  const install = await h.ok(["agents", "install", "--pilot", h.liveConfig, "--agent", "codex", "--agent", "gemini", "--agent", "opencode"]);
+  assert.deepEqual([install.agents, install.shared], [["codex", "gemini", "opencode"], [{ agent: "gemini", dir: shared, with: "codex" }, { agent: "opencode", dir: shared, with: "codex" }]]);
+  assert.ok(install.actions.length === SKILL_NAMES.length && install.actions.every((a) => a.agent === "codex" && a.status === "create"), JSON.stringify(install.actions));
+  // OpenCode is now named, so the same request is refused. Neither route made an OpenCode folder.
+  failed(await h.add("opencode"), "DEVTWIN_INVALID_INPUT", "agent");
+  assert.deepEqual([h.dialogs.length, existsSync(join(h.home, ".config"))], [2, false]);
+  // A home with no ~/.agents/skills: live init and live add-agent refuse OpenCode, as for every agent.
+  const bare = await liveHome(t, { folders: [".claude/skills"] });
+  failed(await bare.cli(["live", "init", "--pilot", bare.liveConfig, "--agent", "opencode", "--repo", bare.repo]), "DEVTWIN_GATE_REQUIRED", "live.skillDirs.opencode");
+  await bare.init(["claude"]);
+  failed(await bare.add("opencode"), "DEVTWIN_GATE_REQUIRED", "live.skillDirs.opencode");
+  assert.equal(bare.dialogs.length, 0);
+});
+
 test("the hook denies live add-agent with --apply from an agent shell and allows its preview", async (t) => {
   const p = await makePilot(t);
   const PREVIEW = 'node "/opt/example-kit/bin/devtwin.mjs" live add-agent --pilot /x/live.json --agent antigravity';
@@ -258,7 +304,7 @@ test("after live add-agent, setup status lists the agent's skills and hooks step
   assert.ok(skills.preview.actions.length === SKILL_NAMES.length && skills.preview.actions.every((a) => a.agent === "antigravity" && a.status === "create"), JSON.stringify(skills.preview.actions));
   // The agents the config named before keep their state.
   const all = (await h.ok(["setup", "status", "--pilot", h.liveConfig])).steps.filter((s) => s.agent);
-  assert.deepEqual(all.filter((s) => s.skipped).map((s) => s.id), ["skills-gemini", "hooks-gemini"]);
+  assert.deepEqual(all.filter((s) => s.skipped).map((s) => s.id), ["skills-gemini", "skills-opencode", "hooks-gemini", "hooks-opencode"]);
 });
 
 test("live add-agent takes the Claude Code skills folder from CLAUDE_CONFIG_DIR", async (t) => {

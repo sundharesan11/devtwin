@@ -4,7 +4,7 @@ import { kindOf } from "./claude.mjs";
 // Issue #8: the Gemini CLI adapter (checked against Gemini CLI 0.50 and geminicli.com/docs/hooks/reference,
 // /docs/cli/skills and /docs/reference/tools).
 //   skills        ~/.agents/skills, the alias Gemini reads in the user tier, where it wins over ~/.gemini/skills. Codex
-//                 reads the same folder, so one install serves both agents (src/agents/install.mjs).
+//                 and OpenCode read the same folder, so one install serves the three agents (src/agents/install.mjs).
 //   instructions  a marker block in ~/.gemini/GEMINI.md, the global context file.
 //   hooks         the top-level "hooks" key of ~/.gemini/settings.json. Entries have a name, and timeout is in
 //                 milliseconds. Tool matchers are regexes; lifecycle events take no matcher here.

@@ -57,10 +57,16 @@ export function protectedPaths({ home = homedir(), env = process.env, kitRoot = 
     { label: "real-codex-home", path: join(home, ".codex") },
     { label: "real-agents-home", path: join(home, ".agents") },
     { label: "real-gemini-home", path: join(home, ".gemini") },
+    // The OpenCode config folder. It is no skill parent: OpenCode reads ~/.agents/skills, so no root and no skills
+    // folder ever sits here. OPENCODE_CONFIG_DIR moves the folder for OpenCode. The adapter still installs here and
+    // only here; a set OPENCODE_CONFIG_DIR is one more protected folder (below), as CODEX_HOME is, so no root sits in
+    // the folder that OpenCode really reads. XDG_CONFIG_HOME is not read.
+    { label: "real-opencode-home", path: join(home, ".config/opencode") },
     { label: "real-cursor-home", path: join(home, ".cursor") },
     { label: "real-commandcode-home", path: join(home, ".commandcode") },
     ...(env.CLAUDE_CONFIG_DIR ? [{ label: "CLAUDE_CONFIG_DIR", path: env.CLAUDE_CONFIG_DIR }] : []),
     ...(env.CODEX_HOME ? [{ label: "CODEX_HOME", path: env.CODEX_HOME }] : []),
+    ...(env.OPENCODE_CONFIG_DIR ? [{ label: "OPENCODE_CONFIG_DIR", path: env.OPENCODE_CONFIG_DIR }] : []),
     { label: "default-config", path: join(home, ".config/devtwin") },
     { label: "default-data", path: join(home, ".local/share/devtwin") },
     { label: "default-state", path: join(home, ".local/state/devtwin") },
@@ -70,7 +76,8 @@ export function protectedPaths({ home = homedir(), env = process.env, kitRoot = 
     { label: "kit-checkout", path: kitRoot }
   ];
 }
-// Each agent's user skill folder, from its adapter (src/agents/adapters). Codex and Gemini CLI share ~/.agents/skills.
+// Each agent's user skill folder, from its adapter (src/agents/adapters). Codex, Gemini CLI and OpenCode share
+// ~/.agents/skills.
 export function skillDirsFor({ home = homedir(), env = process.env } = {}) {
   return Object.fromEntries(AGENT_IDS.map((id) => [id, adapter(id).skills.dir({ home, env })]));
 }
@@ -83,6 +90,8 @@ function classShape(writeClass, path, home, env) {
   if (!isWithin(path, home) || path === home) return false;
   const dirs = agentDirsFor({ home, env }), name = basename(path), parent = dirname(path);
   if (writeClass === "instructionTargets") return AGENT_IDS.some((id) => path === join(dirs[id], adapter(id).instructions.file) || (adapter(id).instructions.ownedFiles && parent === dirs[id] && OWNED_INSTRUCTIONS.test(name)));
+  // One exact file for each agent: its hook settings file, or its plugin file where the hook target is one whole
+  // file (OpenCode, <home>/.config/opencode/plugins/devtwin.js). No other path in an agent folder is a hook target.
   if (writeClass === "hookTargets") return AGENT_IDS.some((id) => path === join(dirs[id], adapter(id).hooks.file));
   return parent === join(home, "Library/LaunchAgents") && LAUNCH_AGENT.test(name);
 }
@@ -182,8 +191,8 @@ function validate(pilot, context, allowInternal = false) {
     for (const forbidden of pilot.forbidden) if (touches(path, forbidden)) fail(field);
   }
   const spans = skills.length ? [...destinations, ["live.kitRoot", pilot.live.kitRoot]] : destinations;
-  // Issue #8: two agents that share one skill folder (Codex and Gemini CLI, ~/.agents/skills) name the same exact
-  // folder. That is one carve-out, not an overlap; any other overlap still fails.
+  // Issue #8: agents that share one skill folder (Codex, Gemini CLI and OpenCode, ~/.agents/skills) name the same
+  // exact folder. That is one carve-out, not an overlap, for two of them or for all three; any other overlap still fails.
   const shared = (a, b) => a[0].startsWith("live.skillDirs.") && b[0].startsWith("live.skillDirs.") && comparable(a[1]) === comparable(b[1]);
   for (let i = 0; i < spans.length; i++) for (let j = i + 1; j < spans.length; j++) if (touches(spans[i][1], spans[j][1]) && !shared(spans[i], spans[j])) fail(spans[j][0] === "live.kitRoot" ? spans[i][0] : spans[j][0]);
   // A file target sits inside a protected agent folder by design; it must still miss every other destination.

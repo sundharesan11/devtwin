@@ -85,7 +85,7 @@ If the repository is not in the live config's `repos`, it tells you that you can
 5. **Preferences.** When you correct how it works, it asks whether that is a preference for later tasks. If you say yes, it saves a private proposal with `pref propose`, at most once for each kind of correction. You accept it yourself; see [Preferences and templates](/docs/guides/preferences-and-templates/).
 6. **Output templates.** For an RCA, a report or a decision note, it follows `template show`: your own template, or the starter.
 
-It never runs `lesson copy`, `published delete`, `hub join`, `consent grant`, `consent revoke`, `lesson notices --ack --apply`, or `lesson edit` or `lesson reject` with `--apply`. It runs `lesson accept --apply` only for the `project` target, or for the `hub` target under a consent. On Codex, it checks an edit again when a lesson arrives after the edit ran.
+It never runs `lesson copy`, `published delete`, `hub join`, `consent grant`, `consent revoke`, `lesson notices --ack --apply`, or `lesson edit` or `lesson reject` with `--apply`. It runs `lesson accept --apply` only for the `project` target, or for the `hub` target under a consent. On Codex, Gemini CLI, Antigravity CLI and OpenCode, it checks an edit again when a lesson arrives after the edit ran.
 
 ## devtwin-setup
 

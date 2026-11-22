@@ -14,7 +14,8 @@ import { editOwnedFile, readOwnedText, replaceOwnedEntries } from "../storage/ow
 import { writeKitReceipt, receiptPath, receiptProblem, readPilotBytes } from "../hooks/receipt.mjs";
 import { readIndex, rebuildDerived } from "../lessons/index.mjs";
 import { SCOPE_ID } from "../identity/ids.mjs";
-import { adapter, AGENT_IDS, LISTED } from "./adapters/index.mjs";
+import { stableNodePath } from "../schedule/launchd.mjs";
+import { adapter, AGENT_IDS, LISTED, wholeFileHooks as wholeFile } from "./adapters/index.mjs";
 export { CODEX_TRUST_NOTE } from "./adapters/codex.mjs";
 // U8: devtwin's hook entries in the agent settings files (KTD6, KTD7, KTD9). The only files are the approved
 // hookTargets, one per agent adapter (src/agents/adapters): <claudeDir>/settings.json, ~/.codex/hooks.json,
@@ -27,6 +28,11 @@ export { CODEX_TRUST_NOTE } from "./adapters/codex.mjs";
 // above. devtwin reads and changes its own container only; an object under another name is never read.
 // An entry is devtwin's only when a completed hook journal of this config wrote it and each of its commands names
 // this pilot. Every other entry, including one that looks like devtwin's, is the developer's and is never changed.
+// A whole-file target (the adapter's hooks.target is "file": the OpenCode plugin, ~/.config/opencode/plugins/devtwin.js)
+// is no JSON file with entries. The adapter generates its text, hooks.content(context), and the file is devtwin's as a
+// whole or not at all. Plans, journals, inventories and status rows keep their shapes: the target has one pseudo-event,
+// "file", with one entry, { "sha256": "<hash of the file's text>" }. The file is devtwin's only when a completed hook
+// journal of this config recorded that hash for that path. devtwin never writes over and never removes any other file.
 export const HOOK_KIND = "hook-bundled";
 export const HOOK_INVENTORY = "hook-inventory";
 const KIT = fileURLToPath(new URL("../..", import.meta.url));
@@ -54,13 +60,24 @@ const flatOf = (agent) => adapter(agent).hooks.container !== undefined;
 // Code, Codex or Gemini CLI entry is always a group, so a top-level command there is no handler and is not read.
 const commandsOf = (entry, flat) => isObject(entry) ? [flat ? entry.command : null, ...(Array.isArray(entry.hooks) ? entry.hooks.filter(isObject).map((h) => h.command) : [])].filter((c) => typeof c === "string") : [];
 const devtwinLike = (entry, flat) => commandsOf(entry, flat).some((c) => /devtwin/i.test(c) && /\bhook\b/.test(c));
+// The name of the one pseudo-event of a whole-file target (wholeFile: the registry's wholeFileHooks).
+const FILE_EVENT = "file";
 // The kit and pilot paths the hook line names. In live mode the kit is the live config's pinned clone.
-export function hookContext(pilot, kitRoot) {
+// nodePath is the Node path a whole-file target bakes in for a PATH with no node. A hook line never names it: it runs
+// plain "node". It is the stable path that the scheduled jobs use (stableNodePath in src/schedule/launchd.mjs): under
+// Homebrew, process.execPath is a versioned Cellar folder, so with it every brew upgrade would change the expected
+// text, turn an installed plugin into an outdated one, and end a preview that another Node version made. This is the
+// one place that reads it, so the expected hash and the written text come from one value. nodeLookup
+// ({ execPath, realpath, isFile }) is the test seam of the jobs; a hook plan takes it as input.nodeLookup.
+export function hookContext(pilot, kitRoot, nodeLookup) {
   const context = { pilotPath: realpathSync(pilot.path), kitRoot: pilot.live ? pilot.live.kitRoot : realpathSync(kitRoot ?? KIT) };
   for (const path of Object.values(context)) if (UNSAFE_IN_COMMAND.test(path)) throw new DevtwinError("INVALID_INPUT", "Path cannot be quoted in a hook command", { field: "hookCommand" });
-  return context;
+  return { ...context, nodePath: stableNodePath(nodeLookup ?? {}) };
 }
+// The text of a whole-file target for a hook context. The expected hash and the written file both come from here.
+const fileText = (agent, context) => adapter(agent).hooks.content(context);
 export function expectedEntries(agent, context) {
+  if (wholeFile(agent)) return { [FILE_EVENT]: [{ sha256: hashText(fileText(agent, context)) }] };
   return Object.fromEntries(HOOK_EVENTS[agent].map(([name, event, matcher]) => [name, [adapter(agent).hooks.entry({ command: hookCommand({ ...context, event, agent }), matcher, event })]]));
 }
 function targets(pilot, { targetHome, agents }) {
@@ -132,6 +149,14 @@ function analyze(text, { agent, path, owned, expected, context }) {
   }
   return { root, events, foreign };
 }
+// The one row of a whole-file target: installed (devtwin's file with the expected text), outdated (devtwin's file with
+// text that devtwin wrote before, such as for an earlier kit clone or an earlier plugin), missing, foreign-entry (the
+// expected bytes, which no journal wrote) or modified (any other content).
+function analyzeFile(text, { path, owned, expected }) {
+  const entry = { sha256: hashText(text) }, mine = text !== null && owned.entries.has(key(path, FILE_EVENT, entry)), same = entry.sha256 === expected[FILE_EVENT][0].sha256;
+  const status = text === null ? "missing" : mine ? (same ? "installed" : "outdated") : same ? "foreign-entry" : "modified";
+  return { events: [{ event: FILE_EVENT, status, mine: mine ? [entry] : [] }], foreign: [] };
+}
 function serialize(root, text) {
   const indent = /\n([ \t]+)"/.exec(text ?? "")?.[1] ?? "  ";
   return JSON.stringify(root, null, indent) + (text && !text.endsWith("\n") ? "" : "\n");
@@ -139,7 +164,10 @@ function serialize(root, text) {
 // The new file text: devtwin's entries replaced by the expected ones (install) or removed (uninstall). Every other
 // entry stays in place. Uninstall also drops an event list that it left empty, and then the container when no key is
 // left in it. A key devtwin did not write, such as "enabled", keeps the container.
-function rewrite(text, { agent, path, owned, expected, mode }) {
+// A whole-file target has no other entry: the new text is the generated file (install) or null, no file (uninstall).
+// The caller plans it only for a file that is absent or devtwin's.
+function rewrite(text, { agent, path, owned, expected, mode, context }) {
+  if (wholeFile(agent)) return mode === "install" ? fileText(agent, context) : null;
   const box = containerOf(agent);
   let out = text, emptied = [];
   for (const [name] of HOOK_EVENTS[agent]) {
@@ -162,7 +190,7 @@ function rewrite(text, { agent, path, owned, expected, mode }) {
 }
 const readTarget = (path) => { try { return { text: readOwnedText(path) }; } catch (error) { if (error instanceof DevtwinError) return { error: error.code }; throw error; } };
 async function analyzeAll(pilot, input) {
-  const list = targets(pilot, input), context = hookContext(pilot, input.kitRoot);
+  const list = targets(pilot, input), context = hookContext(pilot, input.kitRoot, input.nodeLookup);
   const owned = ledger(pilot, await readJournals(pilot.stateRoot)), approved = pilot.writeClasses?.hookTargets ?? [];
   return { context, owned, rows: list.map(({ agent, path }) => {
     const expected = expectedEntries(agent, context), base = { agent, path, expected };
@@ -171,23 +199,25 @@ async function analyzeAll(pilot, input) {
     if (!parent?.isDirectory() || parent.isSymbolicLink()) return { ...base, blocked: "agent-folder-missing" };
     const read = readTarget(path);
     if (read.error) return { ...base, conflict: read.error === "DEVTWIN_LIMIT" ? "file-too-large" : "unsafe-file" };
-    const seen = analyze(read.text, { agent, path, owned, expected, context });
+    const seen = wholeFile(agent) ? analyzeFile(read.text, { path, owned, expected }) : analyze(read.text, { agent, path, owned, expected, context });
     return { ...base, text: read.text, ...seen };
   }) };
 }
 const eventRows = (events) => events.map(({ event, status }) => ({ event, status }));
-export async function planHooks(pilot, { targetHome, agents, mode = "install", kitRoot }) {
+export async function planHooks(pilot, { targetHome, agents, mode = "install", kitRoot, nodeLookup }) {
   if (!["install", "uninstall"].includes(mode)) throw new DevtwinError("INVALID_INPUT", "Invalid installer selection");
-  const { context, owned, rows } = await analyzeAll(pilot, { targetHome, agents, kitRoot });
+  const { context, owned, rows } = await analyzeAll(pilot, { targetHome, agents, kitRoot, nodeLookup });
   const actions = rows.map((row) => {
     const { agent, path, expected } = row, base = { agent, path };
     if (row.blocked) return { ...base, status: "blocked", reason: row.blocked };
     if (row.conflict) return { ...base, status: "conflict", reason: row.conflict };
     const before = hashText(row.text), events = eventRows(row.events), foreign = row.foreign;
     const blocking = row.events.find((e) => ["modified", "foreign-entry"].includes(e.status));
-    if (mode === "install" && blocking) return { ...base, status: "conflict", reason: blocking.status, before, events, foreign };
+    // A whole-file target that is not devtwin's stays in place and stays active, so an uninstall says so too: it is
+    // no absent file. In a JSON file the other entries stay and the uninstall removes devtwin's own, as before.
+    if (blocking && (mode === "install" || wholeFile(agent))) return { ...base, status: "conflict", reason: blocking.status, before, events, foreign };
     if (mode === "uninstall" && !row.events.some((e) => e.mine.length)) return { ...base, status: "absent", before, events, foreign };
-    const after = rewrite(row.text, { agent, path, owned, expected, mode });
+    const after = rewrite(row.text, { agent, path, owned, expected, mode, context });
     if (row.text !== null && after === row.text) return { ...base, status: "installed", before, events, foreign };
     const changes = row.events.flatMap((e) => {
       const keep = mode === "install" && e.status === "installed";
@@ -200,11 +230,17 @@ export async function planHooks(pilot, { targetHome, agents, mode = "install", k
 }
 // The pre-apply inventory of one hook target. Devtwin rows are entries whose commands all name this pilot; foreign
 // rows keep only a hash of the entry, so the store holds no copy of the developer's own commands.
-export function inventoryHookFile(agent, path, pilotPath) {
+// A whole-file target has one row, the file's hash: a devtwin row when owned (the ledger of the completed journals)
+// holds that hash for this path, else a foreign row. With no ledger the file is foreign.
+export function inventoryHookFile(agent, path, pilotPath, owned) {
   const read = readTarget(path), shape = shapeFor(pilotPath), box = containerOf(agent), flat = flatOf(agent);
   if (read.error) return { agent, path, existed: true, unreadable: true, sha256: null, devtwin: [], foreign: [] };
   if (read.text === null) return { agent, path, existed: false, sha256: null, devtwin: [], foreign: [] };
   const row = { agent, path, existed: true, sha256: hashText(read.text), devtwin: [], foreign: [] };
+  if (wholeFile(agent)) {
+    const entry = { sha256: row.sha256 };
+    return owned?.entries.has(key(path, FILE_EVENT, entry)) ? { ...row, devtwin: [{ event: FILE_EVENT, entry }] } : { ...row, foreign: [{ event: FILE_EVENT, sha256: row.sha256 }] };
+  }
   let root;
   try { root = JSON.parse(read.text); } catch { return { ...row, invalid: true }; }
   for (const [event, list] of Object.entries(isObject(root?.[box]) ? root[box] : {})) for (const entry of Array.isArray(list) ? list : []) {
@@ -224,14 +260,15 @@ export async function applyHooks(roots, pilot, input, { fingerprint, runId, now 
     if ((await incompleteInstallRuns(pilot)).length) throw new DevtwinError("RECOVERY_REQUIRED", "Incomplete installer journal");
     const plan = await planHooks(pilot, input);
     assertFingerprint(plan, fingerprint);
-    const { owned } = await analyzeAll(pilot, input), context = { pilotPath: plan.pilotPath, kitRoot: plan.kitRoot };
+    // The context of the plan that was just checked: the same kit, pilot and Node path, so the text has the planned hash.
+    const { owned, context } = await analyzeAll(pilot, input);
     const intended = plan.actions.filter((a) => WRITES.includes(a.status));
     if (intended.length) {
       assertWritable(roots, [journalPath, inventoryPath]);
       ensurePrivatePath(roots.stateRoot, ["runs"]);
       try { await mkdir(runDir, { mode: 0o700 }); }
       catch (error) { if (error.code === "EEXIST") throw new DevtwinError("CONFLICT", "Run ID already exists"); throw error; }
-      const files = plan.actions.filter((a) => a.status !== "blocked").map((a) => inventoryHookFile(a.agent, a.path, plan.pilotPath));
+      const files = plan.actions.filter((a) => a.status !== "blocked").map((a) => inventoryHookFile(a.agent, a.path, plan.pilotPath, owned));
       await writeNewFile(inventoryPath, canonicalJson({ schemaVersion: 1, kind: HOOK_INVENTORY, runId, configId: configIdOf(pilot), mode: plan.mode, pilotPath: plan.pilotPath, recordedAt: now.toISOString(), files }) + "\n");
       await faults.afterInventory?.();
       const entries = intended.map((a) => ({ agent: a.agent, path: a.path, status: a.status, before: a.before, after: a.after, entries: plan.mode === "install" ? expectedEntries(a.agent, context) : {} }));
@@ -241,10 +278,13 @@ export async function applyHooks(roots, pilot, input, { fingerprint, runId, now 
       for (const [i, entry] of entries.entries()) {
         journal.started.push(i);
         await save();
-        const expected = expectedEntries(entry.agent, context);
-        await editOwnedFile(roots, { path: entry.path, writeClass: "hookTargets", runId, edit: (text) => {
+        // rewrite never reads the expected entries of a whole-file target, so its text is not built again here.
+        const expected = wholeFile(entry.agent) ? null : expectedEntries(entry.agent, context);
+        // Only the removal of a whole-file target names the bytes to remove. Without priorHash a null result fails.
+        const priorHash = wholeFile(entry.agent) && entry.status === "remove" ? entry.before : undefined;
+        await editOwnedFile(roots, { path: entry.path, writeClass: "hookTargets", runId, priorHash, edit: (text) => {
           if (hashText(text) !== entry.before) throw new DevtwinError("STALE_VERSION", "Hook file changed during apply");
-          const next = rewrite(text, { agent: entry.agent, path: entry.path, owned, expected, mode: plan.mode });
+          const next = rewrite(text, { agent: entry.agent, path: entry.path, owned, expected, mode: plan.mode, context });
           if (hashText(next) !== entry.after) throw new DevtwinError("STALE_VERSION", "Hook file changed during apply");
           return next;
         } });
@@ -262,6 +302,7 @@ export async function applyHooks(roots, pilot, input, { fingerprint, runId, now 
   return result.receipt ? { ...result, derived: await rebuildDerived(roots) } : result;
 }
 // Recovery of one started, unfinished entry, from the file's hash against the journal's before and after hashes.
+// An absent file has the hash null, as the after of a whole-file removal has: no file after a remove is complete.
 export function hookRecoveryFor(entry) {
   const read = readTarget(entry.path);
   if (read.error) return { op: "hold", reason: "unsafe-file", observed: null };
@@ -301,8 +342,8 @@ function statusAgents(pilot, targetHome) {
   return AGENTS.filter((id) => LISTED.includes(id) || named(id));
 }
 // Read-only: each agent's hook entries, the kit receipt and the notes an owner needs.
-export async function hookStatus(pilot, { targetHome, kitRoot, now = new Date() }) {
-  const { context, rows } = await analyzeAll(pilot, { targetHome, agents: statusAgents(pilot, targetHome), kitRoot });
+export async function hookStatus(pilot, { targetHome, kitRoot, now = new Date(), nodeLookup }) {
+  const { context, rows } = await analyzeAll(pilot, { targetHome, agents: statusAgents(pilot, targetHome), kitRoot, nodeLookup });
   const agents = rows.map((row) => ({ agent: row.agent, path: row.path,
     status: row.blocked ?? row.conflict ?? overall(row.events), ...(row.events ? { events: eventRows(row.events), foreign: row.foreign } : {}) }));
   let receipt;
@@ -318,16 +359,25 @@ function diff(before, now) {
   for (const [id, row] of b) if (!a.has(id)) out.push({ change: "added", row });
   return out;
 }
-export function hookRollbackCheck(pilot, inventory, runId) {
+// A whole-file target is compared by its hash row. The ledger is read now, so a file that a later journal wrote is
+// devtwin's. A whole-file target that did not exist before the run and exists now is a devtwin difference whoever
+// wrote it: OpenCode loads any file at that path, and an edited devtwin plugin has a hash no journal holds. Its row
+// moves from the foreign list to the devtwin list. While an installer journal of this config is incomplete the ledger
+// is not final, so the check refuses as the apply does.
+export async function hookRollbackCheck(pilot, inventory, runId) {
   const valid = inventory?.schemaVersion === 1 && inventory.runId === runId && typeof inventory.pilotPath === "string" && ["install", "uninstall"].includes(inventory.mode) && Array.isArray(inventory.files)
     && inventory.files.every((f) => AGENTS.includes(f?.agent) && typeof f.path === "string" && Array.isArray(f.devtwin) && Array.isArray(f.foreign));
   if (!valid) throw new DevtwinError("INTEGRITY", "Invalid install inventory", { runId });
   if (inventory.configId !== configIdOf(pilot)) throw new DevtwinError("GATE_REQUIRED", "Inventory belongs to another live config", { runId });
   if (inventory.mode !== "install") throw new DevtwinError("INVALID_INPUT", "Rollback check needs an install run", { runId });
-  const approved = pilot.writeClasses?.hookTargets ?? [];
+  // install.mjs imports this module, so the helper comes in through a dynamic import, as in applyHooks.
+  const { incompleteInstallRuns } = await import("./install.mjs");
+  if ((await incompleteInstallRuns(pilot)).length) throw new DevtwinError("RECOVERY_REQUIRED", "Incomplete installer journal");
+  const approved = pilot.writeClasses?.hookTargets ?? [], owned = ledger(pilot, await readJournals(pilot.stateRoot));
   const files = inventory.files.map((before) => {
     if (!approved.includes(before.path)) throw new DevtwinError("GATE_REQUIRED", "Inventory names a file outside this live config", { agent: before.agent });
-    const now = inventoryHookFile(before.agent, before.path, inventory.pilotPath);
+    let now = inventoryHookFile(before.agent, before.path, inventory.pilotPath, owned);
+    if (wholeFile(before.agent) && !before.existed && now.existed) now = { ...now, devtwin: now.devtwin.length ? now.devtwin : [{ event: FILE_EVENT, sha256: now.sha256 }], foreign: [] };
     return { agent: before.agent, path: before.path, existedBefore: before.existed, existsNow: now.existed, devtwin: diff(before.devtwin, now.devtwin), foreign: diff(before.foreign, now.foreign) };
   });
   const report = { runId, kind: HOOK_INVENTORY, recordedAt: inventory.recordedAt, files };

@@ -151,14 +151,14 @@ In live mode, everything private lives under one folder in your home directory:
 
 </FileTree>
 
-Outside this folder, live mode writes only `devtwin-*` entries inside the skill folders the live config names (`~/.claude/skills`, `~/.agents/skills` and, for Antigravity CLI, `~/.gemini/config/skills`), and the exact paths you approved as [write classes](/docs/reference/configuration/#write-classes): hub clone folders, devtwin's own entries in the agent hook settings files, its `devtwin.*.plist` files in `~/Library/LaunchAgents`, and backup archives in the backup folders. The hub sync, radar, activity and backup jobs use those plist files. See [Live mode](/docs/guides/live-mode/).
+Outside this folder, live mode writes only `devtwin-*` entries inside the skill folders the live config names (`~/.claude/skills`, `~/.agents/skills` and, for Antigravity CLI, `~/.gemini/config/skills`), and the exact paths you approved as [write classes](/docs/reference/configuration/#write-classes): hub clone folders, devtwin's own entries in the agent hook settings files, the devtwin plugin file for OpenCode, its `devtwin.*.plist` files in `~/Library/LaunchAgents`, and backup archives in the backup folders. The hub sync, radar, activity and backup jobs use those plist files. See [Live mode](/docs/guides/live-mode/).
 
 ## Protection and its limits
 
 - **Private file modes.** New files are created with mode `0600` and folders with `0700`, so other users on the machine can't read them.
 - **Not encrypted on disk.** `devtwin` does not encrypt the store itself. Use full-disk encryption, such as FileVault on macOS. Only the backup archives are encrypted.
 - **Backups, no sync.** In live mode, `backup create` and the daily backup job write encrypted archives to a folder you approved. Until you approve one, the store exists only on your disk, and if you lose it, you lose its records. A hub shares only the lessons you accept and your "working on" notes, never the store. See [Backup and restore](/docs/guides/live-mode/#backup-and-restore).
-- **The fence is not a sandbox.** `devtwin` refuses to write outside the pilot's folders and always refuses your real agent homes (`~/.claude`, `~/.codex`, `~/.agents`, `~/.gemini`, `~/.cursor`, `~/.commandcode`, plus `$CLAUDE_CONFIG_DIR` and `$CODEX_HOME` when set) and the kit checkout. That limits the CLI, not other programs: any process running as you, including your agent, can still read the store.
+- **The fence is not a sandbox.** `devtwin` refuses to write outside the pilot's folders and always refuses your real agent homes (`~/.claude`, `~/.codex`, `~/.agents`, `~/.gemini`, `~/.config/opencode`, `~/.cursor`, `~/.commandcode`, plus `$CLAUDE_CONFIG_DIR`, `$CODEX_HOME` and `$OPENCODE_CONFIG_DIR` when set) and the kit checkout. That limits the CLI, not other programs: any process running as you, including your agent, can still read the store.
 
 Read the [Security model](/docs/security/security-model/) for the full set of assumptions.
 

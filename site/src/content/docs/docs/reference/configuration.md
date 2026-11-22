@@ -42,7 +42,7 @@ No other keys are allowed.
 
 - All paths must be absolute and canonical (no symlinked components). On macOS use `pwd -P` or `realpath`, because `/tmp` is a symlink to `/private/tmp`.
 - In a disposable pilot, the five roots, `agentHomes` and `repos` must all be strictly inside `pilotRoot`, and none may overlap another. In a live config, `repos` and the skill folders are instead outside the store.
-- Nothing may touch a protected path: `~/.claude`, `~/.codex`, `~/.agents`, `~/.gemini`, `~/.cursor`, `~/.commandcode`, `$CLAUDE_CONFIG_DIR`, `$CODEX_HOME`, `~/.config/devtwin`, `~/.local/share/devtwin`, `~/.local/state/devtwin`, the former defaults `~/.config/devctx`, `~/.local/share/devctx` and `~/.local/state/devctx` (kept protected during the rename transition), `~/.local/state/personal-os`, or the kit checkout itself.
+- Nothing may touch a protected path: `~/.claude`, `~/.codex`, `~/.agents`, `~/.gemini`, `~/.config/opencode`, `~/.cursor`, `~/.commandcode`, `$CLAUDE_CONFIG_DIR`, `$CODEX_HOME`, `$OPENCODE_CONFIG_DIR`, `~/.config/devtwin`, `~/.local/share/devtwin`, `~/.local/state/devtwin`, the former defaults `~/.config/devctx`, `~/.local/share/devctx` and `~/.local/state/devctx` (kept protected during the rename transition), `~/.local/state/personal-os`, or the kit checkout itself.
 - The private roots must not be inside a Git worktree.
 - Changing the pilot file changes its digest. Some stored receipts are bound to that digest and will then refuse with `DEVTWIN_GATE_REQUIRED`.
 
@@ -80,7 +80,7 @@ The live config is a pilot file with a `live` block. `live init` writes it; you 
 | --- | --- |
 | `configId` | Random ID drawn by `live init`. Pattern `^[a-z0-9][a-z0-9_-]{7,63}$`. Install receipts bind to it. |
 | `home` | Must equal your process home. |
-| `skillDirs` | One entry for each agent you use, at least one: `claude` (`~/.claude/skills`, or `$CLAUDE_CONFIG_DIR/skills`), `codex` and `gemini` (both `~/.agents/skills`) and `antigravity` (`~/.gemini/config/skills`). Each must be exactly that folder and must already exist as a real directory. [`live add-agent`](/docs/reference/cli/#live-add-agent) adds an entry to an existing config. |
+| `skillDirs` | One entry for each agent you use, at least one: `claude` (`~/.claude/skills`, or `$CLAUDE_CONFIG_DIR/skills`), `codex`, `gemini` and `opencode` (all three `~/.agents/skills`) and `antigravity` (`~/.gemini/config/skills`). Each must be exactly that folder and must already exist as a real directory. [`live add-agent`](/docs/reference/cli/#live-add-agent) adds an entry to an existing config. |
 | `kitRoot` | The kit clone live commands must run from. |
 | `kitCommit` | The commit that clone must be detached at, clean. 40 or 64 hex characters. |
 
@@ -114,15 +114,15 @@ A live config can hold an optional top-level `writeClasses` block. It names the 
 | Class | Allowed paths | Written by |
 | --- | --- | --- |
 | `hubRoot` | Folders inside your home for hub clones. Writes are allowed in the folder and below it. | `hub join`, `hub sync`, `hub leave` |
-| `instructionTargets` | `~/.claude/CLAUDE.md` (or `$CLAUDE_CONFIG_DIR/CLAUDE.md`), `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, and a `devtwin*.md` file directly in `~/.claude` or `~/.codex`. | `instructions apply` |
-| `hookTargets` | `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`), `~/.codex/hooks.json`, `~/.gemini/settings.json` and, for Antigravity CLI, `~/.gemini/config/hooks.json`. | `agents install --hooks`, `agents uninstall --hooks` |
+| `instructionTargets` | `~/.claude/CLAUDE.md` (or `$CLAUDE_CONFIG_DIR/CLAUDE.md`), `~/.codex/AGENTS.md`, `~/.gemini/GEMINI.md`, and a `devtwin*.md` file directly in `~/.claude` or `~/.codex`. For OpenCode, exactly `~/.config/opencode/devtwin.md`. | `instructions apply` |
+| `hookTargets` | `~/.claude/settings.json` (or `$CLAUDE_CONFIG_DIR/settings.json`), `~/.codex/hooks.json`, `~/.gemini/settings.json` and, for Antigravity CLI, `~/.gemini/config/hooks.json`. For OpenCode, exactly the plugin file `~/.config/opencode/plugins/devtwin.js`, which devtwin writes as a whole. | `agents install --hooks`, `agents uninstall --hooks` |
 | `launchAgents` | Files named `devtwin.<name>.plist` directly in `~/Library/LaunchAgents`. | `hub schedule`, `schedule apply`, `schedule off` |
 | `backupTargets` | Folders inside your home for backup archives and restores. Writes are allowed in the folder and below it, never in a sibling or a parent. | `backup create`, `backup restore`, the `backup-daily` job |
 | `repoLearnings` | Exact roots of repositories listed in `repos`. devtwin writes there only Git objects and one new `devtwin/learning-<id>` branch, never a file. | `lesson accept --target repo`, `undo` of a learning branch |
 
 - Set the classes only with [`live write-classes`](/docs/reference/cli/#live-write-classes). The classes are part of the approved config digest, so a hand edit is refused with `DEVTWIN_GATE_REQUIRED`.
 - Every path must be canonical and inside your home. A link, or a path whose folder is a link, is refused. A hub root or backup folder must not overlap the store, the kit, a listed repository, a skill folder, a protected agent home or another approved folder.
-- In a settings or instruction file, devtwin changes only its own JSON entries or the text between `<!-- devtwin:begin -->` and `<!-- devtwin:end -->`. It backs up the exact prior bytes to `store/state/runs/<run_id>/backups/` first, and the file keeps its own mode.
+- In a settings or instruction file, devtwin changes only its own JSON entries or the text between `<!-- devtwin:begin -->` and `<!-- devtwin:end -->`. It backs up the exact prior bytes to `store/state/runs/<run_id>/backups/` first, and the file keeps its own mode. The OpenCode plugin file is the one hook target that devtwin writes as a whole and that an uninstall removes, and only when devtwin wrote it.
 - A disposable pilot can list classes too. Its file targets must have the same shapes inside a listed `agentHomes` folder, and its hub roots must be inside `pilotRoot`.
 
 ### Stack-watch exception
@@ -218,6 +218,7 @@ The bundled catalog `catalog/stack-sources.json` maps item names (and aliases su
 | `DEVCTX_KIT` | Bundled skills, CLI notes | Legacy name, read for one transition. The skills fall back to it only when `DEVTWIN_KIT` is unset. `agents status` and `live migrate` add a `LEGACY_KIT_ENV` note while it is set. See [Migrate from devctx](/docs/guides/migrate-from-devctx/). |
 | `CLAUDE_CONFIG_DIR` | CLI | If set, Claude's skill folder is `$CLAUDE_CONFIG_DIR/skills`, and the directory is protected. |
 | `CODEX_HOME` | CLI | Protected. It does not change where Codex skills are installed; live previews warn `CODEX_HOME_IGNORED`. |
+| `OPENCODE_CONFIG_DIR` | CLI | Protected. It does not change where devtwin installs for OpenCode: always `~/.config/opencode`. An OpenCode with a moved config folder is not supported. When it names a folder inside or around a root, a registered repository, a skills folder, or an approved hub or backup folder of the config, every command that loads the config in that shell is refused with `DEVTWIN_GATE_REQUIRED`, and the error details name the field and `protected: OPENCODE_CONFIG_DIR`. The hook command does not load the config that way, so the owner-action block and the lessons keep working in a session that loads the plugin. One hook step does run that check: the step that posts a "working on" note. So in a project that joined a hub, the hook posts no "working on" note from such a session. |
 | `HOME` | CLI | Used for protected paths. In live mode it must equal the live config's `home`. |
 
 devtwin reads no token or credential from the environment today.

@@ -9,7 +9,7 @@ import { agentDirsFor } from "../config/pilot.mjs";
 import { finalizePlan, assertFingerprint } from "../storage/plan.mjs";
 import { readPrivateJson } from "../storage/fsx.mjs";
 import { readRegistry } from "../config/registry.mjs";
-import { adapter, AGENT_IDS } from "../agents/adapters/index.mjs";
+import { adapter, AGENT_IDS, wholeFileHooks } from "../agents/adapters/index.mjs";
 import { receiptPath, receiptProblem, readPilotBytes } from "../hooks/receipt.mjs";
 import { readPersonalSnapshot, addPersonalRecord } from "../records/personal.mjs";
 import { personalRecordIdFor, SCOPE_ID } from "../identity/ids.mjs";
@@ -51,10 +51,16 @@ function skillsStep(agent) {
   };
 }
 
-// The hook settings files of the agents in the live config.
+// The one rule for the live hook file of an agent, so the targets, the plugin check and a step's needs agree on a path.
+const liveHookFile = (ctx, agent) => join(agentDirsFor({ home: ctx.pilot.live.home, env: ctx.env ?? process.env })[agent], adapter(agent).hooks.file);
+// The hook settings files of the agents in the live config. For an agent whose hook target is one whole file that
+// devtwin owns (hooks.target "file"), it is that file: a plugin file.
 export function hookTargetsFor(ctx) {
-  const dirs = agentDirsFor({ home: ctx.pilot.live.home, env: ctx.env ?? process.env });
-  return AGENTS.filter((agent) => Object.hasOwn(ctx.pilot.live.skillDirs, agent)).map((agent) => join(dirs[agent], adapter(agent).hooks.file));
+  return AGENTS.filter((agent) => Object.hasOwn(ctx.pilot.live.skillDirs, agent)).map((agent) => liveHookFile(ctx, agent));
+}
+// True when path is the plugin file of an agent, for the home of the live config.
+export function pluginTarget(ctx, path) {
+  return AGENTS.some((agent) => wholeFileHooks(agent) && path === liveHookFile(ctx, agent));
 }
 // U9 (one approval): needs(ctx) names the write-class paths a step needs approved in the live config. A setup batch
 // (src/setup/batch.mjs) merges them into one live write-classes change that runs before every other step.
@@ -63,8 +69,8 @@ const writeClassesHooks = {
   id: "write-classes-hooks", title: "Approve the hook settings files", available: true, owner: true, config: true,
   needs: (ctx) => ctx.pilot.live ? { hookTargets: hookTargetsFor(ctx) } : {},
   skip: (ctx) => ctx.pilot.live ? null : "a disposable pilot lists its hook targets in the pilot file",
-  what: "Adds the hook settings file of each agent in the live config (" + AGENTS.map((id) => adapter(id).hooks.display).join(", ") + ") to the hookTargets write class of the live config. Runs live write-classes --hook-target for each file. Other classes stay as they are.",
-  why: "devtwin edits an agent settings file only when you approved that exact path in the live config. The hook steps need this approval.",
+  what: "Adds the hook settings file or the plugin file of each agent in the live config (" + AGENTS.map((id) => adapter(id).hooks.display).join(", ") + ") to the hookTargets write class of the live config. Runs live write-classes --hook-target for each file. Other classes stay as they are.",
+  why: "devtwin edits an agent settings file, or writes its plugin file, only when you approved that exact path in the live config. The hook steps need this approval.",
   undo: "live write-classes --clear hookTargets, through preview and apply, removes the approval. Run agents uninstall --hooks first to remove the hook entries.",
   plan: async (ctx) => {
     const current = ctx.pilot.writeClasses?.hookTargets ?? [], targets = [...new Set([...current, ...hookTargetsFor(ctx)])];
@@ -80,12 +86,17 @@ const writeClassesHooks = {
 function hooksStep(agent) {
   const values = (ctx) => ({ agent: [agent], hooks: true, ...pick(ctx.values, ["home"]) });
   const file = adapter(agent).hooks.display, note = adapter(agent).hooks.note;
+  // A plugin file is devtwin's as a whole: it holds no entry of the developer's, and an uninstall removes the file.
+  const text = wholeFileHooks(agent) ? { what: "Writes the devtwin plugin file " + file + ". Runs agents install --hooks --agent " + agent + ". devtwin owns the whole file. Other plugins in the folder stay." + (note ? " " + note.message : ""),
+    undo: "agents uninstall --hooks --agent " + agent + " removes the file when devtwin wrote it and you did not change it. A backup of the file is kept in the run folder." }
+    : { what: "Adds devtwin's hook entries to " + file + ". Runs agents install --hooks --agent " + agent + ". Other entries in the file stay." + (note ? " " + note.message : ""),
+      undo: "agents uninstall --hooks --agent " + agent + " removes only devtwin's entries. A backup of the file is kept in the run folder." };
   return {
     id: "hooks-" + agent, agent, title: "Hooks for " + agent, available: true, owner: true, skip: agentSkip(agent),
-    needs: (ctx) => ctx.pilot.live ? { hookTargets: hookTargetsFor(ctx).filter((path) => path === join(agentDirsFor({ home: ctx.pilot.live.home, env: ctx.env ?? process.env })[agent], adapter(agent).hooks.file)) } : {},
-    what: "Adds devtwin's hook entries to " + file + ". Runs agents install --hooks --agent " + agent + ". Other entries in the file stay." + (note ? " " + note.message : ""),
+    needs: (ctx) => ctx.pilot.live ? { hookTargets: hookTargetsFor(ctx).filter((path) => path === liveHookFile(ctx, agent)) } : {},
+    what: text.what,
     why: "The hook gives the agent matching lessons at the moment it touches an area, and denies owner-only devtwin commands from agent shells.",
-    undo: "agents uninstall --hooks --agent " + agent + " removes only devtwin's entries. A backup of the file is kept in the run folder.",
+    undo: text.undo,
     plan: async (ctx) => (await agentsCmd()).agentsInstallCommand.run(values(ctx), ctx),
     apply: async (ctx, fingerprint) => (await agentsCmd()).agentsInstallCommand.run({ ...values(ctx), ...pick(ctx.values, ["run-id"]), apply: true, "plan-fingerprint": fingerprint }, ctx),
     done: async (ctx) => settled((await (await agentsCmd()).agentsInstallCommand.run(values(ctx), ctx)).actions, ["installed"])

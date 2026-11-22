@@ -10,7 +10,7 @@ const agents = (value) => value === undefined ? [] : Array.isArray(value) ? valu
 // --hooks selects devtwin's hook entries in the agent settings files instead of the bundled skills. Without it the
 // command is unchanged. Each target has its own preview, fingerprint and journal.
 const hooksCommand = async (values, ctx, mode) => {
-  const input = { targetHome: values.home, agents: agents(values.agent), mode, kitRoot: ctx.kitRoot };
+  const input = { targetHome: values.home, agents: agents(values.agent), mode, kitRoot: ctx.kitRoot, nodeLookup: ctx.nodeLookup };
   if (!values.apply) return planHooks(ctx.pilot, input);
   if (!values["plan-fingerprint"]) throw new DevtwinError("PLAN_REQUIRED", "Plan fingerprint required");
   return applyHooks(ctx.roots, ctx.pilot, input, { fingerprint: values["plan-fingerprint"], runId: values["run-id"] ?? "run_" + randomBytes(12).toString("hex"), now: ctx.now() });
@@ -28,7 +28,7 @@ export const agentsUninstallCommand = command("uninstall");
 // hooks reports each agent's hook entries, the kit receipt, the Codex /hooks trust step and roots bound in two scopes.
 export const agentsStatusCommand = { options: { home: { type: "string" } }, async run(values, ctx) {
   const status = await installStatus(ctx.roots, ctx.pilot, { targetHome: values.home }), notes = envNotes(ctx.env ?? process.env);
-  const hooks = await hookStatus(ctx.pilot, { targetHome: values.home, kitRoot: ctx.kitRoot, now: ctx.now() });
+  const hooks = await hookStatus(ctx.pilot, { targetHome: values.home, kitRoot: ctx.kitRoot, now: ctx.now(), nodeLookup: ctx.nodeLookup });
   // Issue #8: each listed agent's support level ("full" or "partial") and the capability flags behind it.
   const shown = new Set([...status.actions.map((a) => a.agent), ...hooks.agents.map((a) => a.agent)]);
   const result = { ...status, hooks, support: AGENT_IDS.filter((id) => shown.has(id)).map(support) };

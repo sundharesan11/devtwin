@@ -15,9 +15,9 @@ import { isHookKind, isHookJournal, hookJournalFinished, hookRecoveryFor } from 
 import { LEGACY_SKILL_NAMES, LEGACY_SKILL_PREFIX, LEGACY_RECEIPT, isLegacySkill } from "../config/legacy.mjs";
 import { kitId, kitIdentity, parseKitId, COMMIT } from "../kit/identity.mjs";
 import { adapter, isAgent, AGENT_IDS, LISTED } from "./adapters/index.mjs";
-// Each agent's skill folder under a home, from its adapter (src/agents/adapters). Codex and Gemini CLI share
-// .agents/skills: one install serves both, and an uninstall keeps the folder's entries while another agent of the live
-// config still uses it.
+// Each agent's skill folder under a home, from its adapter (src/agents/adapters). Codex, Gemini CLI and OpenCode share
+// .agents/skills: one install serves the three, and an uninstall keeps the folder's entries while another agent of the
+// live config still uses it.
 const SKILL_HOMES = Object.freeze(Object.fromEntries(AGENT_IDS.map((id) => [id, adapter(id).skills.folder])));
 // The skill-builder package installs (frozen feature work) keep the two agents they always had.
 export const AGENT_HOMES = Object.freeze(Object.fromEntries(LISTED.map((id) => [id, SKILL_HOMES[id]])));
@@ -140,7 +140,7 @@ async function observe(pilot, owned, dir, skill, mode) {
 export async function planInstall(pilot, { targetHome, agents, mode = "install" }) {
   if (!["install", "uninstall"].includes(mode)) throw new DevtwinError("INVALID_INPUT", "Invalid installer selection");
   const selected = skillRoots(pilot, targetHome, agents);
-  // A folder two selected agents share is planned once, under the first of them; shared names the others.
+  // A folder that two or three selected agents share is planned once, under the first of them; shared names the others.
   const roots = selected.filter((r, i) => selected.findIndex((o) => o.dir === r.dir) === i);
   const shared = selected.filter((r) => !roots.includes(r)).map((r) => ({ agent: r.agent, dir: r.dir, with: roots.find((o) => o.dir === r.dir).agent }));
   // Uninstall keeps a folder that another agent of the live config still uses and that is not selected.

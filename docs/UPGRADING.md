@@ -72,7 +72,7 @@ LIVE_CONFIG="$HOME/.devtwin/live.json"
 
    The owner dialog "Change the kit devtwin runs" names the old and new kit IDs and folders. It shows the digest again. Compare it with the release before you approve.
 
-8. Preview the setup batch. It lists the skills, hook entries, job files and paths confirmation that still name the old kit:
+8. Preview the setup batch. It lists the skills, hook entries, job files and paths confirmation that still name the old kit. For OpenCode, it lists the plugin file:
 
    ```sh
    devtwin setup plan --pilot "$LIVE_CONFIG" --all-pending
@@ -97,15 +97,15 @@ LIVE_CONFIG="$HOME/.devtwin/live.json"
 
 11. If you set `DEVTWIN_KIT` in your shell profile, change it to the new `kitRoot`, with the owner's approval.
 
-12. In Codex, run `/hooks` and trust each changed devtwin entry. Antigravity CLI has no such step.
+12. In Codex, run `/hooks` and trust each changed devtwin entry. Antigravity CLI and OpenCode have no such step.
 
 The devtwin hook denies `kit install --apply`, `live set-kit --apply` and `setup apply --all-pending` from an agent shell. An agent can show you the previews, but you run each apply.
 
-Until the batch runs, the hook lines and job files still name the old kit. The live config no longer pins that kit, so the kit gate refuses their live commands. `schedule status` shows those jobs as `outdated`.
+Until the batch runs, the hook lines and job files still name the old kit. The live config no longer pins that kit, so the kit gate refuses their live commands. `schedule status` shows those jobs as `outdated`. The OpenCode plugin file names the old kit too, and `agents status` shows it as `outdated`.
 
 ## Add an agent after an upgrade
 
-A release can add support for an agent, such as Antigravity CLI. The upgrade does not add that agent to your live config. `setup status` shows its skills and hooks steps as skipped, with the reason "agent not in the live config". Read [Roll back after you add an agent](#roll-back-after-you-add-an-agent) first. Then add the agent after step 10 of the upgrade:
+A release can add support for an agent, such as Antigravity CLI or OpenCode. The upgrade does not add that agent to your live config. `setup status` shows its skills and hooks steps as skipped, with the reason "agent not in the live config". Read [Roll back after you add an agent](#roll-back-after-you-add-an-agent) first. Then add the agent after step 10 of the upgrade:
 
 1. Preview the change:
 
@@ -129,7 +129,7 @@ A release can add support for an agent, such as Antigravity CLI. The upgrade doe
    devtwin instructions plan --pilot "$LIVE_CONFIG"
    ```
 
-   The plan shows the agent's instruction file as `blocked` when that file is not an approved instruction target. For Antigravity CLI the file is `~/.gemini/GEMINI.md`. Approve it with `live write-classes --instruction-target`, preview first. Give every instruction target that is already approved again, because the flag replaces the class. Then preview the instruction block again.
+   The plan shows the agent's instruction file as `blocked` when that file is not an approved instruction target. For Antigravity CLI the file is `~/.gemini/GEMINI.md`. For OpenCode it is `~/.config/opencode/devtwin.md`. Approve it with `live write-classes --instruction-target`, preview first. Give every instruction target that is already approved again, because the flag replaces the class. Then preview the instruction block again.
 
 5. Apply it in your own terminal:
 
@@ -138,6 +138,18 @@ A release can add support for an agent, such as Antigravity CLI. The upgrade doe
    ```
 
 `live add-agent` runs in the pinned kit. A kit from before the route answers with "Unknown command", so pin the new kit first, as step 7 of the upgrade shows. Each apply here is an owner action, and the devtwin hook denies it from an agent shell. [Add an agent to a live config](LIVE.md#add-an-agent-to-a-live-config) has the details.
+
+### Add OpenCode after an upgrade
+
+OpenCode has two more steps: you create its plugins folder first, and you approve its instruction file before the setup batch. [Add OpenCode](LIVE.md#add-opencode) has the details.
+
+1. Create the plugins folder with `mkdir -p ~/.config/opencode/plugins`. devtwin never creates an agent folder.
+2. Preview and apply `live add-agent` with `--agent opencode`, as in steps 1 and 2 of the list above.
+3. Approve `~/.config/opencode/devtwin.md` with `live write-classes --instruction-target`, preview first. Give every instruction target that you approved before again.
+4. Run one setup batch, as in step 3 of the list above. Its dialog has the lines `Approve plugin file ...` and `Install the devtwin plugin file ...`.
+5. Preview and apply the instruction block, as in steps 4 and 5 of the list above.
+
+Without the plugins folder, the batch leaves the `hooks-opencode` step out, and its reason names `agent-folder-missing`. Without `~/.config/opencode`, the instruction plan shows `conflict` with the same reason.
 
 ## Roll back
 
@@ -175,7 +187,7 @@ A kit folder that shows `bad` in `kit list` failed its digest or mode check. Do 
 
 ### Roll back after you add an agent
 
-A kit works only with the agents it knows. A kit from before Antigravity CLI support refuses a live config that names `antigravity`. The error is `GATE_REQUIRED` with the field `live.skillDirs.antigravity`. The `live set-kit` preview in step 2 then stops, and the newer kit stays pinned.
+A kit works only with the agents it knows. A kit from before Antigravity CLI support refuses a live config that names `antigravity`. The error is `GATE_REQUIRED` with the field `live.skillDirs.antigravity`. The `live set-kit` preview in step 2 then stops, and the newer kit stays pinned. The same holds for `opencode` and a kit from before OpenCode support, with the field `live.skillDirs.opencode`.
 
 No command removes an agent from a live config. After `live add-agent`, roll back only to a kit that knows the agent. Add an agent only when you plan to keep a release that supports it.
 
@@ -188,6 +200,13 @@ devtwin agents uninstall --pilot "$LIVE_CONFIG" --agent antigravity
 
 Uninstall with a kit that knows the agent, before any move to another kit. An earlier kit refuses the agent's name, so it cannot remove those entries. It also treats a hook journal that names the agent as an incomplete run. The live config still names the agent after the uninstall. `setup status` then shows the steps `skills-antigravity` and `hooks-antigravity` as pending again. A setup batch with `--all-pending` installs them again. To keep them out, run the batch with `--steps` and name only the steps that you want.
 
+For OpenCode, use `--agent opencode` in both commands, and mind these points:
+
+- The hook uninstall removes the plugin file `~/.config/opencode/plugins/devtwin.js`. It removes the file only when devtwin wrote it and you did not change it. For any other file it reports `conflict`, and you delete or move the file by hand.
+- The skills uninstall keeps the skills in `~/.agents/skills` while Codex or Gemini CLI is in the live config. Each skill shows `preserve` with the reason `shared-folder`.
+- To take the instruction block out, preview `instructions plan --remove --agent opencode` and apply it with `instructions apply --remove --agent opencode` in your own terminal. The block leaves `~/.config/opencode/devtwin.md`, and the file stays.
+- After the uninstall, the step `hooks-opencode` is pending again. The step `skills-opencode` stays done while the shared folder holds the skills.
+
 ## Move from a Git clone to a package kit
 
 A setup made from a clone at `~/.devtwin/kit` moves to a package kit with the same steps as an upgrade:
@@ -196,7 +215,7 @@ A setup made from a clone at `~/.devtwin/kit` moves to a package kit with the sa
 2. Run steps 2 to 9 of the upgrade.
 3. Run the checks in step 10.
 
-The dialog shows the move from `git:<commit>` to `npm:<version>+sha256:<digest>`. The batch rewrites every hook line and job file, because they name the kit folder.
+The dialog shows the move from `git:<commit>` to `npm:<version>+sha256:<digest>`. The batch rewrites every hook line and job file, because they name the kit folder. It rewrites the OpenCode plugin file for the same reason.
 
 The clone stays on disk. To go back, run `live set-kit` from the clone with its commit, preview then apply:
 
@@ -213,6 +232,7 @@ The clone must still be clean and detached at that commit, and the commit must b
 The pinned kit decides which devtwin code runs. The Node interpreter is a separate matter:
 
 - **Hooks** run `node` from the agent's `PATH`. Under nvm, the hook uses the Node version that is active in the shell that started the agent.
+- **The OpenCode plugin file** runs `node` from the `PATH` too. For a `PATH` with no `node`, it holds a fixed Node path, the one that the job files use. When that path changes, `agents status` shows the file as `outdated`. Run the hooks install again, or one setup batch.
 - **Jobs** run a fixed Node path, which the setup batch writes into each job file. A Homebrew Node uses its stable link, so `brew upgrade` does not break the jobs.
 - **The global `devtwin` command** lives in the global folder of the active Node version. After `nvm use` to another version, `devtwin` can be missing or older. Install it again for that version with `npm i -g devtwin@alpha`.
 

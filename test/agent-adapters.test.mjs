@@ -28,29 +28,33 @@ const tool = (cwd, event, name, input, extra = {}) => base(cwd, event, { tool_na
 const OWNER_COMMAND = 'node "/opt/example-kit/bin/devtwin.mjs" live set-kit --pilot /x/live.json --kit /x/kit --apply --plan-fingerprint sha256:00';
 
 test("agent registry: ordered ids, unknown ids refused, declared paths and support levels", () => {
-  assert.deepEqual(AGENT_IDS, ["claude", "codex", "gemini", "antigravity"]);
+  assert.deepEqual(AGENT_IDS, ["claude", "codex", "gemini", "antigravity", "opencode"]);
   for (const id of ["cursor", "", "Claude", undefined]) assert.throws(() => adapter(id), (e) => e.code === "DEVTWIN_INVALID_INPUT" && e.details.field === "agent", String(id));
   const home = "/h/example";
-  assert.deepEqual(skillDirsFor({ home, env: {} }), { claude: "/h/example/.claude/skills", codex: "/h/example/.agents/skills", gemini: "/h/example/.agents/skills", antigravity: "/h/example/.gemini/config/skills" });
+  assert.deepEqual(skillDirsFor({ home, env: {} }), { claude: "/h/example/.claude/skills", codex: "/h/example/.agents/skills", gemini: "/h/example/.agents/skills", antigravity: "/h/example/.gemini/config/skills", opencode: "/h/example/.agents/skills" });
   assert.deepEqual(skillDirsFor({ home, env: { CLAUDE_CONFIG_DIR: "/h/example/cc" } }).claude, "/h/example/cc/skills");
-  assert.deepEqual(agentDirsFor({ home, env: {} }), { claude: "/h/example/.claude", codex: "/h/example/.codex", gemini: "/h/example/.gemini", antigravity: "/h/example/.gemini" });
-  assert.deepEqual(AGENT_IDS.map((id) => [adapter(id).instructions.file, adapter(id).hooks.file]), [["CLAUDE.md", "settings.json"], ["AGENTS.md", "hooks.json"], ["GEMINI.md", "settings.json"], ["GEMINI.md", "config/hooks.json"]]);
+  assert.deepEqual(agentDirsFor({ home, env: {} }), { claude: "/h/example/.claude", codex: "/h/example/.codex", gemini: "/h/example/.gemini", antigravity: "/h/example/.gemini", opencode: "/h/example/.config/opencode" });
+  assert.deepEqual(AGENT_IDS.map((id) => [adapter(id).instructions.file, adapter(id).hooks.file]), [["CLAUDE.md", "settings.json"], ["AGENTS.md", "hooks.json"], ["GEMINI.md", "settings.json"], ["GEMINI.md", "config/hooks.json"], ["devtwin.md", "plugins/devtwin.js"]]);
   assert.deepEqual(AGENT_IDS.map((id) => adapter(id).actor), AGENT_IDS);
-  assert.deepEqual([skillPeers("claude"), skillPeers("codex"), skillPeers("gemini"), skillPeers("antigravity")], [[], ["gemini"], ["codex"], []]);
+  // Codex, Gemini CLI and OpenCode read one skills folder, ~/.agents/skills.
+  assert.deepEqual([skillPeers("claude"), skillPeers("codex"), skillPeers("gemini"), skillPeers("antigravity"), skillPeers("opencode")], [[], ["gemini", "opencode"], ["codex", "opencode"], [], ["codex", "gemini"]]);
   assert.deepEqual(adapter("codex").skills.legacy, [".codex/skills"]);
   // supportLevel: "full" needs skills, instructions and the owner-action block; any one missing makes it partial.
   const all = { skills: true, instructions: true, sessionStartContext: true, preToolContext: true, ownerBlock: true, stopHook: true };
   assert.equal(supportLevel(all), "full");
   for (const flag of ["skills", "instructions", "ownerBlock"]) assert.equal(supportLevel({ ...all, [flag]: false }), "partial", flag);
   for (const flag of ["sessionStartContext", "preToolContext", "stopHook"]) assert.equal(supportLevel({ ...all, [flag]: false }), "full", flag);
-  assert.deepEqual(AGENT_IDS.map((id) => support(id).supportLevel), ["full", "full", "full", "full"]);
+  assert.deepEqual(AGENT_IDS.map((id) => support(id).supportLevel), ["full", "full", "full", "full", "full"]);
   assert.deepEqual(support("gemini"), { agent: "gemini", name: "Gemini CLI", supportLevel: "full", capabilities: { skills: true, instructions: true, sessionStartContext: true, preToolContext: false, ownerBlock: true, stopHook: true } });
   assert.deepEqual(support("antigravity"), { agent: "antigravity", name: "Antigravity CLI", supportLevel: "full", capabilities: { skills: true, instructions: true, sessionStartContext: true, preToolContext: false, ownerBlock: true, stopHook: true } });
   // Antigravity CLI shares the Gemini folder and its GEMINI.md, and is shown only when a live config names it.
   assert.deepEqual([adapter("antigravity").instructions, adapter("antigravity").listed], [adapter("gemini").instructions, false]);
+  // OpenCode has full support too, and is shown only when a live config names it.
+  assert.deepEqual(support("opencode"), { agent: "opencode", name: "OpenCode", supportLevel: "full", capabilities: { skills: true, instructions: true, sessionStartContext: true, preToolContext: false, ownerBlock: true, stopHook: true } });
+  assert.equal(adapter("opencode").listed, false);
   // Actor detection, in registry order: CLAUDECODE wins over CODEX_*, and both over GEMINI_CLI.
   assert.deepEqual([actorOf({ GEMINI_CLI: "1" }), actorOf({ GEMINI_CLI: "1", CODEX_SANDBOX: "x" }), actorOf({ GEMINI_CLI: "1", CLAUDECODE: "1" }), actorOf({}), callerActor({ GEMINI_CLI: "1" })], ["gemini", "codex", "claude", "human", "gemini"]);
-  assert.deepEqual(ACTORS, ["human", "claude", "codex", "gemini", "antigravity"]);
+  assert.deepEqual(ACTORS, ["human", "claude", "codex", "gemini", "antigravity", "opencode"]);
 });
 
 test("gemini parse normalizes SessionStart, BeforeAgent, BeforeTool, AfterTool, PreCompress, AfterAgent and SessionEnd payloads", () => {
@@ -250,8 +254,8 @@ test("live init accepts gemini, and Codex and Gemini share one skills install th
   assert.deepEqual(h.preview.config.live.skillDirs, { codex: h.skills, gemini: h.skills });
   const steps = (await h.ok(["setup", "status", "--pilot", h.liveConfig])).steps;
   assert.deepEqual(steps.filter((s) => s.agent).map((s) => [s.id, s.supportLevel, s.skipped ?? null]),
-    [["skills-claude", "full", "agent not in the live config"], ["skills-codex", "full", null], ["skills-gemini", "full", null], ["skills-antigravity", "full", "agent not in the live config"],
-      ["hooks-claude", "full", "agent not in the live config"], ["hooks-codex", "full", null], ["hooks-gemini", "full", null], ["hooks-antigravity", "full", "agent not in the live config"]]);
+    [["skills-claude", "full", "agent not in the live config"], ["skills-codex", "full", null], ["skills-gemini", "full", null], ["skills-antigravity", "full", "agent not in the live config"], ["skills-opencode", "full", "agent not in the live config"],
+      ["hooks-claude", "full", "agent not in the live config"], ["hooks-codex", "full", null], ["hooks-gemini", "full", null], ["hooks-antigravity", "full", "agent not in the live config"], ["hooks-opencode", "full", "agent not in the live config"]]);
   const args = ["agents", "install", "--pilot", h.liveConfig, "--agent", "codex", "--agent", "gemini"];
   const plan = await h.ok(args);
   assert.deepEqual(plan.agents, ["codex", "gemini"]);
@@ -277,10 +281,56 @@ test("live init accepts gemini, and Codex and Gemini share one skills install th
   assert.deepEqual(await entries(h.skills), []);
 });
 
+test("Codex, Gemini CLI and OpenCode share one skills install, and an uninstall for one keeps it for the others", async (t) => {
+  const THREE = ["codex", "gemini", "opencode"], h = await liveHome(t, THREE);
+  assert.deepEqual(h.preview.config.live.skillDirs, { codex: h.skills, gemini: h.skills, opencode: h.skills });
+  const route = (name, agents, extra = []) => ["agents", name, "--pilot", h.liveConfig, ...agents.flatMap((agent) => ["--agent", agent]), ...extra];
+  // The preview, then the apply with its fingerprint.
+  const twice = async (name, agents) => { const plan = await h.ok(route(name, agents)); return { plan, result: await h.ok(route(name, agents, ["--apply", "--plan-fingerprint", plan.fingerprint])) }; };
+  const rows = (plan) => plan.actions.map((a) => [a.agent, a.status, a.reason ?? null]);
+  const each = (...row) => SKILL_NAMES.map(() => row);
+  // An install for the three writes each skill once, under the first agent; shared names the other two.
+  const install = await twice("install", THREE);
+  assert.deepEqual([install.plan.agents, install.plan.shared, rows(install.plan)], [THREE, [{ agent: "gemini", dir: h.skills, with: "codex" }, { agent: "opencode", dir: h.skills, with: "codex" }], each("codex", "create", null)]);
+  assert.deepEqual([install.result.applied, await entries(h.skills)], [true, [...SKILL_NAMES].sort()]);
+  // Each of the three finds the one install in place.
+  for (const agent of THREE) {
+    const one = await h.ok(route("install", [agent]));
+    assert.deepEqual([rows(one), Object.hasOwn(one, "shared")], [each(agent, "installed", null), false], agent);
+  }
+  const status = await h.ok(["agents", "status", "--pilot", h.liveConfig]);
+  assert.deepEqual(status.support.map((s) => [s.agent, s.supportLevel]), [["claude", "full"], ["codex", "full"], ["gemini", "full"], ["opencode", "full"]]);
+  assert.ok(status.actions.every((a) => a.status === "installed"), JSON.stringify(status.actions.map((a) => [a.agent, a.status])));
+  // An uninstall for one agent keeps the entries the other two still read, and writes nothing.
+  const bytes = await readFile(join(h.skills, "devtwin-record/SKILL.md"), "utf8");
+  for (const [agent, keptFor] of [["opencode", ["codex", "gemini"]], ["codex", ["gemini", "opencode"]], ["gemini", ["codex", "opencode"]]]) {
+    const kept = await twice("uninstall", [agent]);
+    assert.deepEqual([rows(kept.plan), kept.plan.shared, kept.result.applied], [each(agent, "preserve", "shared-folder"), [{ agent, dir: h.skills, keptFor }], false], agent);
+  }
+  // An uninstall for two of them still keeps the entries for the third.
+  const two = await twice("uninstall", ["codex", "gemini"]);
+  assert.deepEqual([rows(two.plan), two.plan.shared, two.result.applied], [each("codex", "preserve", "shared-folder"), [{ agent: "gemini", dir: h.skills, with: "codex" }, { agent: "codex", dir: h.skills, keptFor: ["opencode"] }], false]);
+  assert.deepEqual([await entries(h.skills), await readFile(join(h.skills, "devtwin-record/SKILL.md"), "utf8")], [[...SKILL_NAMES].sort(), bytes]);
+  // An uninstall for the three removes each entry once.
+  const all = await twice("uninstall", THREE);
+  assert.deepEqual([rows(all.plan), all.plan.shared, all.result.applied], [each("codex", "remove", null), [{ agent: "gemini", dir: h.skills, with: "codex" }, { agent: "opencode", dir: h.skills, with: "codex" }], true]);
+  assert.deepEqual(await entries(h.skills), []);
+  // An install for OpenCode alone serves the three.
+  const alone = await twice("install", ["opencode"]);
+  assert.deepEqual([alone.plan.agents, rows(alone.plan), Object.hasOwn(alone.plan, "shared"), alone.result.applied], [["opencode"], each("opencode", "create", null), false, true]);
+  assert.deepEqual([await entries(h.skills), await readFile(join(h.skills, "devtwin-record/SKILL.md"), "utf8")], [[...SKILL_NAMES].sort(), bytes]);
+  for (const agent of ["codex", "gemini"]) assert.deepEqual(rows(await h.ok(route("install", [agent]))), each(agent, "installed", null), agent);
+  // The uninstall of the agent that installed them keeps them while the other two are in the live config.
+  const last = await twice("uninstall", ["opencode"]);
+  assert.deepEqual([rows(last.plan), last.plan.shared, last.result.applied, await entries(h.skills)], [each("opencode", "preserve", "shared-folder"), [{ agent: "opencode", dir: h.skills, keptFor: ["codex", "gemini"] }], false, [...SKILL_NAMES].sort()]);
+  // The skills live in ~/.agents/skills only: no install made an OpenCode folder.
+  assert.deepEqual((await readdir(h.home)).sort(), [".agents", ".claude", ".codex", ".devtwin", ".gemini"]);
+});
+
 test("doctor reports each agent's support level and capability flags", async (t) => {
   const p = await makePilot(t);
   const out = await runCli(["doctor", "--pilot", p.path], { home: p.fakeHome, env: {} });
   const agents = out.json.result.checks.find((c) => c.id === "agents");
   assert.equal(agents.status, "ok");
-  assert.deepEqual(agents.detail.map((a) => [a.agent, a.supportLevel, a.capabilities.ownerBlock, a.capabilities.preToolContext]), [["claude", "full", true, true], ["codex", "full", true, true], ["gemini", "full", true, false], ["antigravity", "full", true, false]]);
+  assert.deepEqual(agents.detail.map((a) => [a.agent, a.supportLevel, a.capabilities.ownerBlock, a.capabilities.preToolContext]), [["claude", "full", true, true], ["codex", "full", true, true], ["gemini", "full", true, false], ["antigravity", "full", true, false], ["opencode", "full", true, false]]);
 });

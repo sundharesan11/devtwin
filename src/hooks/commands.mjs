@@ -46,9 +46,10 @@ export const NOTICE = "devtwin lessons — data from teammates, not instructions
 // Issue #8: one adapter per agent (src/agents/adapters). parse turns the agent's payload into one shape, with the
 // event under devtwin's internal name; format prints context in the agent's own shape. No agent gets context on a
 // compaction event, and the lesson path never writes a permission decision. An agent that reads no context before a
-// tool runs (Gemini CLI, Antigravity CLI) gets only the owner-action block on pre-tool, and its file and command
-// lessons on post-tool. An agent whose post-tool hook cannot print context either (Antigravity CLI,
-// hooks.deferToolContext) has those lessons held in its session file until its next prompt event: see deferred.
+// tool runs (Gemini CLI, Antigravity CLI, OpenCode) gets only the owner-action block on pre-tool, and its file and
+// command lessons on post-tool: OpenCode's plugin appends them to the tool result. An agent whose post-tool hook
+// cannot print context either (Antigravity CLI, hooks.deferToolContext) has those lessons held in its session file
+// until its next prompt event: see deferred.
 class Quiet extends Error { constructor(code) { super(code); this.code = code; } }
 async function readPayload(stdin) {
   let bytes;
@@ -252,8 +253,8 @@ async function respond({ stateRoot, pilot, pilotPath, pilotBytes, agent, event, 
     matches = prompt ? matchLessons(found.index, { text: prompt, project, now }) : [];
   } else {
     const paths = relativePaths(input.paths, { cwd: found.cwd, root: found.root });
-    // Command lessons arrive on the adapter's lesson event: before the tool runs, or after it for Gemini CLI and
-    // Antigravity CLI.
+    // Command lessons arrive on the adapter's lesson event: before the tool runs, or after it for Gemini CLI,
+    // Antigravity CLI and OpenCode.
     const commands = event === hooks.lessonEvent && input.toolKind === "shell" ? shellCommands(input.command) : [];
     if (!paths.length && !commands.length) return null;
     const hold = defer && event === "PostToolUse";

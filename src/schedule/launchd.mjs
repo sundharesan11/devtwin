@@ -53,7 +53,8 @@ export function plistState(path, content) {
 // of the same prefix and the same formula instead: <prefix>/bin/node for the formula node, <prefix>/opt/node@NN/bin/node
 // for node@NN. The link is used only when its real path is a file <prefix>/Cellar/<formula>/<version>/bin/node, so a link
 // that leads to another install, another formula or another prefix is never used. Otherwise the job keeps execPath. The
-// hook lines in the agent settings run plain "node" from PATH, which an upgrade does not break either.
+// hook lines in the agent settings run plain "node" from PATH, which an upgrade does not break either. The OpenCode
+// plugin file runs it too, and bakes this path in for a PATH with no node (hookContext in src/agents/hooks-install.mjs).
 // ctx.nodeLookup ({ execPath, realpath, isFile }) is the seam.
 const CELLAR = /^(\/.+)\/Cellar\/(node(?:@[0-9]+)?)\/[^/]+\/bin\/node$/;
 const isFileAt = (path) => { try { return statSync(path).isFile(); } catch { return false; } };

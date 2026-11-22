@@ -109,7 +109,7 @@ export function ownerAction(agent, payload) {
   if (HIDING.test(text) && (words.includes("setup") || OWNER_ACTIONS.some(({ words: route }) => route.every((word) => words.includes(word)) || (apply && words.includes(route[0]))))) return "shell expansion near an owner action";
   return null;
 }
-// The deny in the agent's own shape: Claude Code and Codex read a PreToolUse permissionDecision, Gemini CLI and
-// Antigravity CLI a decision with a reason. Antigravity CLI also needs a reply when nothing is denied; that neutral
-// reply is not printed here, and runHook (src/hooks/commands.mjs) never adds it after a deny.
+// The deny in the agent's own shape: Claude Code and Codex read a PreToolUse permissionDecision; Gemini CLI,
+// Antigravity CLI and the OpenCode plugin a decision with a reason. Antigravity CLI also needs a reply when nothing is
+// denied; that neutral reply is not printed here, and runHook (src/hooks/commands.mjs) never adds it after a deny.
 export const denyOutput = (agent = "claude") => adapter(agent).hooks.format({ kind: "deny", reason: DENY_REASON }).stdout;
