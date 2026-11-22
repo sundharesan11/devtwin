@@ -19,7 +19,7 @@ export const OWNER_ACTIONS = Object.freeze([
   { words: ["pref", "accept"], apply: true }, { words: ["pref", "retire"], apply: true }, { words: ["instructions", "apply"] },
   { words: ["live", "migrate"], apply: true }, { words: ["record", "publish"], apply: true },
   { words: ["agents", "install"], apply: true }, { words: ["agents", "uninstall"], apply: true },
-  { words: ["live", "set-kit"], apply: true }, { words: ["live", "add-repo"], apply: true }, { words: ["live", "init"], apply: true },
+  { words: ["live", "set-kit"], apply: true }, { words: ["live", "add-repo"], apply: true }, { words: ["live", "add-agent"], apply: true }, { words: ["live", "init"], apply: true },
   { words: ["live", "write-classes"], apply: true }, { words: ["live", "stack-watch"], apply: true }, { words: ["hub", "leave"], apply: true }, { words: ["hub", "schedule"], apply: true },
   // U20: turning a scheduled job on or off. schedule apply is itself the apply; its preview is schedule plan.
   { words: ["schedule", "apply"] }, { words: ["schedule", "off"], apply: true },
@@ -109,5 +109,7 @@ export function ownerAction(agent, payload) {
   if (HIDING.test(text) && (words.includes("setup") || OWNER_ACTIONS.some(({ words: route }) => route.every((word) => words.includes(word)) || (apply && words.includes(route[0]))))) return "shell expansion near an owner action";
   return null;
 }
-// The deny in the agent's own shape: Claude Code and Codex read a PreToolUse permissionDecision, Gemini CLI a decision.
+// The deny in the agent's own shape: Claude Code and Codex read a PreToolUse permissionDecision, Gemini CLI and
+// Antigravity CLI a decision with a reason. Antigravity CLI also needs a reply when nothing is denied; that neutral
+// reply is not printed here, and runHook (src/hooks/commands.mjs) never adds it after a deny.
 export const denyOutput = (agent = "claude") => adapter(agent).hooks.format({ kind: "deny", reason: DENY_REASON }).stdout;

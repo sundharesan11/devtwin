@@ -32,6 +32,7 @@ export const COMMANDS = {
   "scope add": { load: async () => (await import("./config/commands.mjs")).scopeAddCommand },
   "live init": { rootOptions: false, liveConfig: true, load: async () => (await import("./config/commands.mjs")).liveInitCommand },
   "live add-repo": { rootOptions: false, liveConfig: true, load: async () => (await import("./config/commands.mjs")).liveAddRepoCommand },
+  "live add-agent": { rootOptions: false, liveConfig: true, load: async () => (await import("./config/commands.mjs")).liveAddAgentCommand },
   "live set-kit": { rootOptions: false, liveConfig: true, load: async () => (await import("./config/commands.mjs")).liveSetKitCommand },
   "live write-classes": { rootOptions: false, liveConfig: true, load: async () => (await import("./config/commands.mjs")).liveWriteClassesCommand },
   "live stack-watch": { rootOptions: false, liveConfig: true, load: async () => (await import("./config/commands.mjs")).liveStackWatchCommand },
