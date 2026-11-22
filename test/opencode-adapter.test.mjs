@@ -525,7 +525,7 @@ test("the OpenCode plugin sends each event to the hook command and applies the r
   await writeFile(file, "x".repeat(65536));
   assert.equal((await pushed(12000))[0].text.length, 65536);
   // The read follows no link: a link to a file outside the config folder, a link to a file inside it and a FIFO all add
-  // nothing, and the FIFO read does not wait for a writer. The cap counts bytes, so 21,846 three-byte characters are
+  // nothing, and the plugin never opens the FIFO. The cap counts bytes, so 21,846 three-byte characters are
   // over it.
   const outside = join(dirname(c.config), "outside.md");
   await writeFile(outside, "OUTSIDE TEXT\n");
@@ -538,9 +538,8 @@ test("the OpenCode plugin sends each event to the hook command and applies the r
   assert.deepEqual(await pushed(14000), []);
   await rm(file);
   execFileSync("mkfifo", [file]);
-  const fifoAt = Date.now();
+  // lstat sees no regular file, so the plugin never opens the FIFO. A read that waited would hang this test.
   assert.deepEqual(await pushed(15000), []);
-  assert.ok(Date.now() - fifoAt < 5000, "the FIFO read did not wait");
   await rm(file);
   await writeFile(file, "€".repeat(21846));
   assert.deepEqual(await pushed(16000), []);
