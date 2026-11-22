@@ -36,7 +36,7 @@ export const stackDigestCommand = {
   options: { scope: { type: "string" }, format: { type: "string" }, apply: { type: "boolean" }, "plan-fingerprint": { type: "string" } },
   async run(values, ctx) {
     const scope = values.scope ?? null;
-    if (!values.apply) return planDigest(ctx.roots, { scope, format: values.format }, { ...deps(ctx), request: ctx.request, lookup: ctx.lookup, now: ctx.now });
+    if (!values.apply) return planDigest(ctx.roots, { scope, format: values.format }, { ...deps(ctx), request: ctx.request, lookup: ctx.lookup, now: ctx.now, kitRoot: ctx.kitRoot });
     if (!values["plan-fingerprint"]) throw new DevtwinError("PLAN_REQUIRED", "Plan fingerprint required");
     return applyDigest(ctx.roots, { scope, fingerprint: values["plan-fingerprint"] });
   }
@@ -47,8 +47,8 @@ export const radarGuideCommand = {
   async run(values, ctx) {
     const { planGuide, applyGuide } = await import("./guide.mjs");
     const input = { scope: values.scope ?? null, id: values.item };
-    if (!values.apply) return { preview: true, ...(await planGuide(ctx.roots, input)) };
+    if (!values.apply) return { preview: true, ...(await planGuide(ctx.roots, input, { kitRoot: ctx.kitRoot })) };
     if (!values["plan-fingerprint"]) throw new DevtwinError("PLAN_REQUIRED", "Plan fingerprint required");
-    return applyGuide(ctx.roots, input, { fingerprint: values["plan-fingerprint"] });
+    return applyGuide(ctx.roots, input, { fingerprint: values["plan-fingerprint"], kitRoot: ctx.kitRoot });
   }
 };

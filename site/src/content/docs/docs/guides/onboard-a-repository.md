@@ -143,10 +143,10 @@ To keep everything, add `--keep-previous` to both preview and apply. The preview
 ```json
 {"ok":false,"command":"context resolve","error":{"code":"DEVTWIN_PROJECT_UNBOUND",
  "message":"Worktree not bound in selected scope",
- "details":{"reason":"not-bound-in-scope","remedy":"project onboard --scope other --repo <worktree>"}}}
+ "details":{"reason":"not-bound-in-scope"}}}
 ```
 
-A reason of `worktree-not-confirmed` means another worktree of the same repository is bound, but this one is not. Resolution matches the exact Git worktree root, never a folder name or remote.
+Resolution matches the exact Git worktree root first, never a folder name or remote. A linked worktree of a bound repository, made with `git worktree add`, resolves to that project without onboarding, and the result has `worktree.linked: true`. A reason of `ambiguous-worktree` means that bound roots of two or more projects in the scope share the worktree's Git common directory.
 
 ## Next steps
 

@@ -5,7 +5,7 @@ description: Use when the user asks to be set up with devtwin, or wants to creat
 
 # Set up devtwin
 
-Conduct first-run setup through the setup steps. `setup status` lists the steps. `setup plan --step <id>` shows one step's what, why and undo text and the preview of the command it runs. `setup apply --step <id>` applies that preview. The `devtwin setup` terminal loop shows the same steps and the same consent screens; this skill is the agent entry point to them. `setup status` and `setup plan` only read.
+Conduct first-run setup through the setup steps. `setup status` lists the steps. `setup plan --step <id>` shows one step's what, why and undo text and the preview of the command it runs. `setup apply --step <id>` applies that preview. The setup terminal loop, `node '<kit>/bin/devtwin.mjs' setup --pilot '<pilot.json>'`, shows the same steps and the same consent screens; this skill is the agent entry point to them. `setup status` and `setup plan` only read.
 
 ## When to use
 
@@ -169,7 +169,7 @@ The current profile, its free text, stack suggestions and the records they cite 
 - Stop and ask if the kit path or the pilot path fails any precondition.
 - Stop without creating anything if the pilot file is missing or `init` has not run.
 - Never run `init`, `live init`, `live add-repo`, `live add-agent`, `live set-kit` or `live write-classes`. Creating a pilot or changing the live config is the user's decision.
-- Never run `setup apply` for an owner step or a batch (`--steps` or `--all-pending`), and never run the `devtwin setup` terminal loop. Give the command to the user.
+- Never run `setup apply` for an owner step or a batch (`--steps` or `--all-pending`), and never run the setup terminal loop. Give the user the command with the kit and pilot paths, as above.
 - Never run `setup apply` without explicit approval from the user in the session for the plan you showed last.
 - Never scan, open or read a repository to suggest a stack. Use only `profile suggest-stack`.
 - Never ask more than five questions, and never store credentials or secrets in the profile.

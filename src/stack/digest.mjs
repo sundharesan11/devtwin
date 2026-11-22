@@ -9,6 +9,7 @@ import { withPilotLock } from "../storage/lock.mjs";
 import { finalizePlan } from "../storage/plan.mjs";
 import { plainText } from "./feed.mjs";
 import { runStackCheck, readSeenState, seenStatePath, seenStateBody, seenBase, liveStackWatch, radarItemsPath } from "./check.mjs";
+import { commandContext, commandFor } from "../agents/command-form.mjs";
 import { daysUntil, checkPageRows, RETIREMENT_WINDOW_DAYS } from "./deprecations.mjs";
 import { readStackApproval } from "./plan.mjs";
 import { rankRadar, parseInterests } from "./rank.mjs";
@@ -85,7 +86,8 @@ export const RETIREMENTS_TITLE = "Model retirements";
 export const RETIREMENTS_NOTE = "Models that the vendor deprecation pages say retire within " + RETIREMENT_WINDOW_DAYS + " days. Only the model ID and the date are read from each page.";
 // Days left for a retirement finding, from the check's fetch time.
 export const daysLeft = (finding, check) => daysUntil(finding.retireDate, new Date(check.fetchedAt));
-export const RADAR_NOTE = "Radar items are ranked by your stack, the projects in this scope and your interests. For a short guide to try one, run devtwin radar guide with the item ID.";
+// K1: the guide command is the full executable form (src/agents/command-form.mjs), so it runs as written.
+export const radarNote = (scope, context) => "Radar items are ranked by your stack, the projects in this scope and your interests. For a short guide to try one, run `" + commandFor("radar guide" + (scope ? " --scope " + scope : "") + " --item <item ID>", context) + "`.";
 // The ID a radar guide names an item by: 12 hex characters of the entry hash.
 export const itemId = (entry) => entry.hash.slice(7, 19);
 export const radarKinds = (listed) => Object.keys(RADAR_TITLES).map((kind) => [kind, listed.filter((e) => e.radar.kind === kind)]).filter(([, list]) => list.length);
@@ -103,7 +105,7 @@ function radarBlock(entry) {
   return [parts.join(" · "), "", ...quoted([clean(entry.title) || "(untitled)", clean(entry.summary), inert]), ""];
 }
 
-export function renderDigest(check, { date, interests = [] }) {
+export function renderDigest(check, { date, interests = [], context }) {
   const selected = selectDigest(check, { interests });
   const { level, projects, notes, optional, radar, retirements, counts, previously, add } = selected;
   const out = ["# Stack digest " + date, "",
@@ -131,7 +133,7 @@ export function renderDigest(check, { date, interests = [] }) {
     if (notes.length) { out.push("## Release note lines", ""); for (const f of notes) out.push(...findingBlock(f)); }
   }
   if (radar) {
-    out.push("## Radar", "", RADAR_NOTE, "");
+    out.push("## Radar", "", radarNote(check.scope, context), "");
     if (!radar.listed.length) out.push("No new radar items.", "");
     for (const [kind, list] of radarKinds(radar.listed)) { out.push("### " + RADAR_TITLES[kind], ""); for (const entry of list) out.push(...radarBlock(entry)); }
     out.push("Radar items left out (below the ranking threshold or over the list cap): " + counts.radarLeftOut, "");
@@ -165,6 +167,7 @@ function guideItems(check, selected) {
 }
 export const DIGEST_FORMATS = Object.freeze(["md", "html"]);
 // options.format: md or html; without it the profile's radar format, else md (R30).
+// deps.kitRoot is the running kit for the radar guide command; the live config names its own kit.
 export async function planDigest(roots, { scope = null, format } = {}, deps = {}) {
   liveStackWatch(roots, { scope });
   if (format !== undefined && !DIGEST_FORMATS.includes(format)) throw new DevtwinError("INVALID_INPUT", "Unknown digest format", { field: "format", allowed: DIGEST_FORMATS });
@@ -173,8 +176,9 @@ export async function planDigest(roots, { scope = null, format } = {}, deps = {}
   // The seen base is the one the check marked entries against; an apply landing during the fetch makes this preview stale.
   const check = await runStackCheck(roots, { scope }, deps);
   const date = check.fetchedAt.slice(0, 10);
-  const { markdown, counts, add, previously, selected } = renderDigest(check, { date, interests: radarProfile.interests ?? [] });
-  const html = chosen === "html" ? renderDigestHtml(check, selected, { date }) : null;
+  const context = commandContext(roots.pilot, deps.kitRoot);
+  const { markdown, counts, add, previously, selected } = renderDigest(check, { date, interests: radarProfile.interests ?? [], context });
+  const html = chosen === "html" ? renderDigestHtml(check, selected, { date, context }) : null;
   const written = html ?? markdown;
   const markdownHash = sha256(markdown), contentHash = sha256(written);
   const destination = { root: "dataRoot", path: [...digestSegments(scope), "stack-" + date + "-" + contentHash.slice(7, 19) + "." + chosen].join("/") };

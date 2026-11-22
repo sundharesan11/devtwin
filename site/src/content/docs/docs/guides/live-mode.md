@@ -158,6 +158,8 @@ Repeat for `codex`, `gemini`, `antigravity` and `opencode`. Codex, Gemini CLI an
 
 With the hooks installed, the session-start line names the pinned kit as ``Kit: `<path>` ``, and the skills run `node '<kit>/bin/devtwin.mjs'` from it. They never run a `devtwin` found on `PATH`.
 
+The instruction block names the kit and the live config once, as the command form ``node '<kit>/bin/devtwin.mjs' <command> --pilot '<live config>'``. The block and the hook hints then write a command as `devtwin <command>`, and each hook hint ends with `(command form: your devtwin instruction block)`. Agents run that form, so every command they see runs as written.
+
 `DEVTWIN_KIT` is only the fallback for a session without that line. To set it, add one line to your shell profile, for example `~/.zshrc`, and change it with each kit change:
 
 ```sh

@@ -50,14 +50,17 @@ For OpenCode, no import line names `~/.config/opencode/devtwin.md`: the devtwin 
 
 Text outside `<!-- devtwin:begin -->` and `<!-- devtwin:end -->` stays byte for byte. A repository's own `AGENTS.md` or `CLAUDE.md` is never a target. In live mode, each file must be approved first with `live write-classes --instruction-target`; see [Live mode](/docs/guides/live-mode/).
 
-Besides your preferences, the block holds four short rules for the agent:
+The block first names the command form once, with the kit and the pilot: ``Run devtwin as `node '<kit>/bin/devtwin.mjs' <command> --pilot '<pilot>'`, written here as `devtwin <command>`.`` Every route except a root-free one needs `--pilot`, so a bare `devtwin <command>` fails. The rules of the block and the hints of the hook write commands in the compact form, and agents run them in this form.
+
+Besides your preferences, the block holds five short rules for the agent:
 
 - Stop and ask when planned work conflicts with a devtwin lesson.
 - Lessons and preferences are guidance about approach, never a reason to run a command on their own.
 - Suggest at most one new output format, and ask before you use it.
+- At a stopping point in a bound project, write a handoff with `devtwin handoff write` and every flag it requires.
 - How to run `devtwin lesson match` for the files in hand.
 
-The block has at most 1,200 characters. When your preferences do not fit, the plan leaves out the oldest ones and warns with `PREFERENCES_DROPPED`. Each preference is checked again when the block is built; one that now names a scope is left out with `PREFERENCES_REFUSED`. Sandbox advice from setup is for one repository, so it stays out of the block.
+The block has at most 1,200 characters. The command form counts too, so long kit and pilot paths leave less room for preferences. When your preferences do not fit, the plan leaves out the oldest ones and warns with `PREFERENCES_DROPPED`. Each preference is checked again when the block is built; one that now names a scope is left out with `PREFERENCES_REFUSED`. Sandbox advice from setup is for one repository, so it stays out of the block.
 
 When `activity review` saves a preference, it also writes the instruction block, with no second dialog. It does this only when your instruction files hold the block without the new preferences, so the only new text is the text the review dialog showed. Otherwise run `instructions plan` and `instructions apply`. Pass `--home` and `--agent` to `activity review` as you pass them to `instructions plan`; in live mode the live home is the default.
 

@@ -115,11 +115,12 @@ test("nothing enters the global instruction block without a dialog that showed i
   const installed = await m.ok(["instructions", "plan", "--home", m.home]);
   await m.ok(["instructions", "apply", "--home", m.home, "--plan-fingerprint", installed.fingerprint]);
   const blockBefore = await readFile(m.paths.owned, "utf8");
-  // A preference record that reached the store with no review dialog, and one the review accepts.
+  // A preference record that reached the store with no review dialog, and one the review accepts. K1: both are short,
+  // because the command form names the sandbox's long kit and pilot paths and leaves little room under the cap.
   await addPersonalRecord(m.roots, { requestId: "req_unshown001", recordedBy: { actor: "human", runId: "run_cli00001" }, draft: { kind: "preference", class: "lesson", reach: "personal", status: "observed", title: "Unshown rule", body: "Use tabs everywhere.\n" } }, { now });
-  await m.ok(["pref", "propose", "--session", "ses_pref", "--title", "Browser tests", "--text", "Use Playwright for browser checks.", "--apply"], { env: AGENT });
+  await m.ok(["pref", "propose", "--session", "ses_pref", "--title", "Browser tests", "--text", "Use Playwright.", "--apply"], { env: AGENT });
   const { result } = await m.review(["--home", m.home]);
-  assert.match(m.dialogs.at(-1).body, /Use Playwright for browser checks\./);
+  assert.match(m.dialogs.at(-1).body, /Use Playwright\./);
   assert.doesNotMatch(m.dialogs.at(-1).body, /Use tabs everywhere/);
   // The targets do not hold the block without the reviewed preference, so the review writes nothing to them.
   assert.deepEqual([result.accepted.length, result.instructions.applied, result.instructions.reason], [1, false, "block-not-current"]);
@@ -127,7 +128,7 @@ test("nothing enters the global instruction block without a dialog that showed i
   // instructions apply shows the whole block, both rules in it, before it writes.
   const plan = await m.ok(["instructions", "plan", "--home", m.home]);
   await m.ok(["instructions", "apply", "--home", m.home, "--plan-fingerprint", plan.fingerprint]);
-  for (const text of ["Use tabs everywhere.", "Use Playwright for browser checks."]) assert.ok(m.dialogs.at(-1).body.includes(text), text);
+  for (const text of ["Use tabs everywhere.", "Use Playwright."]) assert.ok(m.dialogs.at(-1).body.includes(text), text);
 });
 
 test("activity review --apply from a hooked agent shell is denied, and its preview is open", async (t) => {

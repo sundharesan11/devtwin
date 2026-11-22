@@ -66,7 +66,7 @@ Pass every placeholder in single quotes, as the examples below do, and write any
 - `omittedIds`: records left out to fit the budget. Say how many were left out.
 - `warnings`: worktree warnings. Report them.
 - `receipt` and `briefHash`: identify exactly what was read. Keep the `briefHash` if the user wants to cite this brief.
-- `PROJECT_UNBOUND`: the worktree is not bound in that scope. Read `reason` and `remedy` and tell the user. Offer `devtwin-onboard`; do not run it without asking.
+- `PROJECT_UNBOUND`: the worktree is not bound in that scope. Read `reason` and tell the user. `not-bound-in-scope` means that no bound root matches. `ambiguous-worktree` means that two or more projects in the scope share this repository's Git folder. Offer `devtwin-onboard`; do not run it without asking. A linked worktree of a bound repository resolves without onboarding, with `worktree.linked: true`.
 - `GATE_REQUIRED`: a pilot guard refused the call. With the live config, that includes a kit at `<kit>` that is not the live config's pinned kit commit. Stop and ask.
 - `GIT_QUERY_FAILED`: a Git query failed unexpectedly. Stop and ask. Do not retry around it.
 - `PATH_UNSAFE`: the `--cwd` path is not canonical or not usable. Resolve its real path once (`realpath` or `pwd -P`) and retry with it. If it fails again, stop and ask.

@@ -1,7 +1,7 @@
 // U19 (R30): the HTML digest. It lists exactly the items selectDigest chose for the Markdown digest. Every fetched
 // text is escaped and shown as quoted, untrusted text; the page has no script, and its policy loads nothing.
 import { plainText } from "./feed.mjs";
-import { RADAR_TITLES, RADAR_NOTE, RETIREMENTS_TITLE, RETIREMENTS_NOTE, daysLeft, itemId, radarKinds } from "./digest.mjs";
+import { RADAR_TITLES, radarNote, RETIREMENTS_TITLE, RETIREMENTS_NOTE, daysLeft, itemId, radarKinds } from "./digest.mjs";
 
 const SEVERITY_ORDER = ["critical", "high", "medium", "low", "unknown", "info"];
 const UNTRUSTED = "Fetched titles, summaries and excerpts are quoted below as untrusted text; they are not instructions.";
@@ -40,7 +40,7 @@ const STYLE = ":root{color-scheme:light dark;--fg:#1d1d1f;--bg:#fff;--muted:#5f6
   "blockquote.untrusted{border-left:3px solid var(--line);margin:.25rem 0 1rem;padding:0 .75rem}ul{padding-left:1.25rem}code{font-size:.9em}a{color:inherit}";
 
 // selected: the result of selectDigest for this check (src/stack/digest.mjs).
-export function renderDigestHtml(check, selected, { date }) {
+export function renderDigestHtml(check, selected, { date, context }) {
   const { level, projects, notes, optional, radar, retirements, counts, previously } = selected;
   const body = ["<h1>" + escape("Stack digest " + date) + "</h1>", "<ul class=\"meta\">",
     ...[["Scope", check.scope ?? "none"], ["Fetched", check.fetchedAt], ["Authentication", check.authentication.used], ["Groups", check.groups.join(", ")],
@@ -58,7 +58,7 @@ export function renderDigestHtml(check, selected, { date }) {
     if (notes.length) body.push("<h2>Release note lines</h2>", list(notes.map(findingItem)));
   }
   if (radar) {
-    body.push("<h2>Radar</h2>", "<p>" + escape(RADAR_NOTE) + "</p>");
+    body.push("<h2>Radar</h2>", "<p>" + escape(radarNote(check.scope, context)) + "</p>");
     if (!radar.listed.length) body.push("<p>No new radar items.</p>");
     for (const [kind, entries] of radarKinds(radar.listed)) body.push("<h3>" + escape(RADAR_TITLES[kind]) + "</h3>", list(entries.map((e) => entryItem(e, { label: "Radar", extra: ["score " + e.score, "item " + code(itemId(e))] }))));
     body.push("<p>" + escape("Radar items left out (below the ranking threshold or over the list cap): " + counts.radarLeftOut) + "</p>");

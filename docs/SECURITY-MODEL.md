@@ -68,6 +68,17 @@ Live mode ([Live activation](LIVE.md)) relaxes the fence for exactly the paths a
 - Cursor also reads `~/.agents/skills` and sees the installed skills. The skills keep every confirmation for any caller.
 - Onboarding copies some client repository text into the store, protected by mode 0700 and disk encryption only. Backups are encrypted, but see [Backups](#backups) for what that protects.
 
+## Worktree resolution
+
+A linked worktree shares the binding of its Git common directory. The hooks, `lesson match` and `context resolve` use one rule for this.
+
+- An exact bound root comes first.
+- Otherwise a worktree resolves to a project when its Git common directory matches the bound roots of exactly one project in the scope. The main checkout and the onboarded linked worktrees of one project count as one project.
+- When bound roots of two or more projects in the scope share the common directory, nothing resolves. `context resolve` fails with `PROJECT_UNBOUND` and the reason `ambiguous-worktree`.
+- The common directory counts only when the worktree's `.git` entry proves it. A `.git` file counts only for a worktree that `git worktree add` made: its Git folder has a `commondir` file and a `gitdir` file that points back at this worktree. A folder with a forged `.git` file never resolves.
+- `context resolve` and `lesson match` read only the scope that the caller names. The hooks take no scope: when bound roots of two scopes match, the hook turns lessons off.
+- The rule widens no fence. A linked worktree outside the pilot's repositories reads the project's records, as the hooks already did. Portable handoff export still refuses a working directory outside the pilot's repositories.
+
 ## Live-mode exceptions
 
 The approved write classes in a live config ([Live-mode exceptions](LIVE.md#live-mode-exceptions)) are the only writes outside the store and the named skill folders. They widen the fence by exact paths only.

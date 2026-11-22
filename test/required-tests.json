@@ -281,7 +281,7 @@
   "re-onboarding preview over a damaged bundle names the keep-previous remedy; keep-previous previews",
   "Git remote whose URL query fails is GIT_QUERY_FAILED, not a silently dropped remote",
   "live onboarding preview, apply and brief leave the client repository snapshot identical",
-  "live onboarding of a dirty worktree warns instead of refusing and the second worktree is not confirmed",
+  "live onboarding of a dirty worktree warns instead of refusing and the second worktree resolves as a linked worktree",
   "repo snapshot detects tracked, untracked and .git changes, ignores logs and FETCH_HEAD, and never hashes ignored files",
   "repo snapshot CLI writes a private file outside the repository and compares by path",
   "repo snapshot detects a rewrite and a nested new file inside a wholly ignored folder without writing to the repository",
@@ -1000,5 +1000,17 @@
   "the instruction plans and dialogs of Claude Code, Codex, Gemini CLI and Antigravity CLI are unchanged",
   "the OpenCode plugin bakes the stable Node link, so a Homebrew upgrade does not make it outdated",
   "the rollback check of a plugin install fails while an edited plugin is in place, and JSON targets keep their rule",
-  "an OpenCode instruction plan warns while the devtwin plugin file is not installed, and changes nothing else"
+  "an OpenCode instruction plan warns while the devtwin plugin file is not installed, and changes nothing else",
+  "command form: the instruction block defines the form once and stays within the cap with 120-character paths",
+  "command form: for each adapter the block holds the definition and every hook hint points to it",
+  "command form: the not-verified start line gives the full verify command",
+  "command form: a radar guide and a digest note give the full executable form",
+  "command form: the owner-action block denies owner actions in the node form for every adapter and allows agent routes",
+  "linked worktree: context resolve gives the bound project with the worktree's own root, branch and head",
+  "linked worktree: cross-scope isolation and an unrelated repository stay not-bound-in-scope",
+  "linked worktree: a forged .git file that names the bound repository's Git folder does not resolve",
+  "linked worktree: the hooks, lesson match and context resolve agree on the same fixtures",
+  "linked worktree: a main entry and linked entries of one project resolve; two projects on one common dir are ambiguous",
+  "linked worktree: a common dir bound in two scopes resolves per requested scope, and the hooks turn lessons off",
+  "linked worktree: the brief checks source freshness in the selected worktree, and portable export stays fenced"
 ]

@@ -56,7 +56,9 @@ test("the rendered block holds the conflict-stop, guidance-only, one-new-format 
   assert.match(text, /stop before the change/);
   assert.match(text, /guidance about approach/);
   assert.match(text, /one new output format/);
-  assert.match(text, /lesson match --pilot "\/p\/live\.json"/);
+  // K1: the block defines the command form once, with both paths; the rules write the compact form.
+  assert.ok(text.includes("Run devtwin as `node '/kit/bin/devtwin.mjs' <command> --pilot '/p/live.json'`, written here as `devtwin <command>`."), text);
+  assert.match(text, /`devtwin lesson match --scope <scope> --cwd <worktree> --path <file>`/);
   assert.ok(text.length <= BLOCK_CHARS);
 });
 
@@ -83,7 +85,8 @@ test("text outside the markers round-trips byte for byte, and remove takes only 
 
 test("a block over the cap leaves out the oldest preferences and warns", async (t) => {
   const s = await setup(t);
-  for (let n = 1; n <= 12; n++) await s.pref(n, "Rule number " + n + " keeps a fairly long sentence here so that the block fills up after a few of them.");
+  // K1: the command-form line names the sandbox's long kit and pilot paths, so short rules fill the rest of the cap.
+  for (let n = 1; n <= 12; n++) await s.pref(n, "Keep rule " + n + " short.");
   const plan = await s.ok(["instructions", "plan"]);
   assert.ok(plan.chars <= BLOCK_CHARS);
   assert.equal(plan.warnings[0].code, "PREFERENCES_DROPPED");

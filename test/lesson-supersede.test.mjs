@@ -148,7 +148,7 @@ test("lesson supersede accepted and published appears in the author's next brief
   const payload = { session_id: "s-author", cwd: repo, hook_event_name: "SessionStart", source: "startup" };
   const chunks = [];
   await main(["hook", "--event", "session-start", "--agent", "claude", "--pilot", a.path], { stdout: { write: (v) => { chunks.push(v); return true; } }, stdin: JSON.stringify(payload), now: at(0.3) });
-  assert.match(JSON.parse(chunks.join("")).hookSpecificOutput.additionalContext, /1 of your lessons was replaced; run `devtwin lesson notices --scope example`/);
+  assert.match(JSON.parse(chunks.join("")).hookSpecificOutput.additionalContext, /1 of your lessons was replaced; run `devtwin lesson notices --scope example` \(command form: your devtwin instruction block\)\./);
   // A second sync adds nothing. Listing is open to agents; the ack previews, then applies with the fingerprint.
   assert.equal((await sync(a, at(0.4))).notices.added, 0);
   const notices = await a.ok(["lesson", "notices", "--scope", SCOPE]);

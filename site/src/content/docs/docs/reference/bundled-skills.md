@@ -49,7 +49,7 @@ Every skill:
 3. Summarises for you, leading with stale records, disputed records and unknowns, then decisions, constraints and commands, quoting record IDs.
 4. Asks which parts the current task needs.
 
-Read-only. On `PROJECT_UNBOUND` it tells you the `reason` and `remedy` and offers `devtwin-onboard` without running it. On `PATH_UNSAFE` it retries once with the real path of `--cwd`.
+Read-only. On `PROJECT_UNBOUND` it tells you the `reason` and offers `devtwin-onboard` without running it. On `PATH_UNSAFE` it retries once with the real path of `--cwd`.
 
 ## devtwin-record
 

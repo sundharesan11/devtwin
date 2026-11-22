@@ -55,7 +55,7 @@ test("hook session start names the running kit's real path", async (t) => {
     return JSON.parse(chunks.join("")).hookSpecificOutput.additionalContext;
   };
   const bound = await start(s.repo);
-  assert.match(bound, /^devtwin hook live: \d+ lessons? for example\.atlas\. Index lines arrive when work matches\. Kit: `([^`]+)`\. Session ID for lesson propose: ses_[a-f0-9]{24}\.$/);
+  assert.match(bound, /^devtwin hook live: \d+ lessons? for example\.atlas\. Scope: example\. Index lines arrive when work matches\. Kit: `([^`]+)`\. Session ID for lesson propose: ses_[a-f0-9]{24}\.$/);
   assert.equal(/Kit: `([^`]+)`/.exec(bound)[1], kitRoot);
   const unbound = await start(s.sandbox);
   assert.ok(unbound.includes("not a bound project. Kit: `" + kitRoot + "`. Session ID"), unbound);

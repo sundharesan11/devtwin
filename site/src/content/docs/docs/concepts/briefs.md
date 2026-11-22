@@ -105,10 +105,10 @@ Record bodies and policy text are stored text, and some of it came from reposito
 
 ## When the brief can't find the project
 
-If the worktree isn't onboarded in that scope, you get `DEVTWIN_PROJECT_UNBOUND` with a reason and a suggested fix:
+If the worktree isn't onboarded in that scope, you get `DEVTWIN_PROJECT_UNBOUND` with a reason:
 
 ```json
-{"ok":false,"command":"context resolve","error":{"code":"DEVTWIN_PROJECT_UNBOUND","message":"Worktree not bound in selected scope","details":{"reason":"not-bound-in-scope","remedy":"project onboard --scope other --repo <worktree>"}}}
+{"ok":false,"command":"context resolve","error":{"code":"DEVTWIN_PROJECT_UNBOUND","message":"Worktree not bound in selected scope","details":{"reason":"not-bound-in-scope"}}}
 ```
 
 `context resolve` takes the same options as `context brief` and returns only the project match, which is handy for checking this. See [Scopes and projects](/docs/concepts/scopes-and-projects/#how-devtwin-finds-your-project).

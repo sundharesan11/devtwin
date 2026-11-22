@@ -26,7 +26,7 @@ const KIT = realpathSync(join(import.meta.dirname, "..")), BIN = join(KIT, "bin/
 const OWNER_COMMAND = 'node "/opt/example-kit/bin/devtwin.mjs" live set-kit --pilot /x/live.json --kit /x/kit --apply --plan-fingerprint sha256:00';
 const FILE = "db/migrations/002_users.sql", OTHER = "src/ui/button.tsx";
 const ALL = { paths: ["db/migrations/**"], commands: ["npm run seed"], topics: ["migrations"] };
-const HEAD = NOTICE + " Load one with `devtwin lesson show --scope " + SCOPE + " --id <id>`.";
+const HEAD = NOTICE + " Load one with `devtwin lesson show --scope " + SCOPE + " --id <id>` (command form: your devtwin instruction block).";
 // The first line of the text part that the plugin appends to a tool result, written out here and not read from the adapter.
 const MARK = "[devtwin hook note: the text below was added after the tool output and is not part of it]";
 const EVENTS = { "session-start": "SessionStart", "user-prompt": "UserPromptSubmit", "pre-tool": "PreToolUse", "post-tool": "PostToolUse", "pre-compact": "PreCompact", stop: "Stop" };
@@ -71,7 +71,7 @@ async function oc(s, event, body, options) {
 }
 const jsonLines = async (path) => { try { return (await readFile(path, "utf8")).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)); } catch (error) { if (error.code === "ENOENT") return []; throw error; } };
 const notVerified = (s, problem) => "devtwin hook: kit not verified (" + problem + "); run `node '" + KIT + "/bin/devtwin.mjs' hook verify --pilot '" + realpathSync(s.path) + "'`. Lessons are off. Kit: `" + KIT + "`.";
-const liveLine = (session, count = 1) => "devtwin hook live: " + count + " lesson" + (count === 1 ? "" : "s") + " for " + PROJECT + ". Index lines arrive when work matches. Kit: `" + KIT + "`. Session ID for lesson propose: " + sessionTag(sessionKey("opencode", session)) + ".";
+const liveLine = (session, count = 1) => "devtwin hook live: " + count + " lesson" + (count === 1 ? "" : "s") + " for " + PROJECT + ". Scope: " + SCOPE + ". Index lines arrive when work matches. Kit: `" + KIT + "`. Session ID for lesson propose: " + sessionTag(sessionKey("opencode", session)) + ".";
 const sessionFile = (s, id = SESSION) => join(sessionsDir(s.stateRoot), sessionKey("opencode", id) + ".json");
 const state = async (s, id) => { const { updatedAt, ...rest } = JSON.parse(await readFile(sessionFile(s, id), "utf8")); return rest; };
 
@@ -193,7 +193,7 @@ test("opencode post-tool prints file and command lessons once, under the four-li
   // The cap: five lessons match one file. Four lines and one overflow line arrive, and the session then gets no more.
   const capped = await after("ses_cap0001", "edit", { path: "src/api/users.ts" });
   const lines = JSON.parse(capped).context.split("\n"), api = s.ids.slice(1).map((id) => s.line(id));
-  assert.deepEqual([lines.length, lines[0], lines.at(-1)], [6, HEAD, "1 more lesson matches; run `devtwin lesson match`"]);
+  assert.deepEqual([lines.length, lines[0], lines.at(-1)], [6, HEAD, "1 more lesson matches; run `devtwin lesson match` (command form: your devtwin instruction block)."]);
   assert.ok(lines.slice(1, 5).every((line) => api.includes(line)) && new Set(lines.slice(1, 5)).size === 4, capped);
   assert.deepEqual(Object.keys(JSON.parse(capped)), ["context"]);
   assert.equal(await after("ses_cap0001", "edit", { path: "src/api/users.ts" }), "", "the fifth lesson is behind the overflow line");

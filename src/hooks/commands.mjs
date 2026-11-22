@@ -17,6 +17,7 @@ import { relativePaths } from "./paths.mjs";
 import { shellCommands } from "./shell-words.mjs";
 import { adapter, isAgent } from "../agents/adapters/index.mjs";
 import { readSummary, renderSummary } from "../context/summary.mjs";
+import { quote, FORM_POINTER } from "../agents/command-form.mjs";
 import { writeStub, readStub, stubLine } from "./stub.mjs";
 import { sessionKey, readSession, writeSession, removeSession, pruneSessions, logBudget, logHook, budgetReport, readNoteState, writeNoteState, MAX_MORE_PLACES } from "./session.mjs";
 // U7: `devtwin hook --event <event> --agent <agent> --pilot <path>` (KTD6, KTD8, KTD17, KTD22, KTD23). It reads the
@@ -129,17 +130,21 @@ async function dropRemoved(stateRoot, found) {
   return entries.length === found.index.entries.length ? found : { ...found, index: { ...found.index, entries } };
 }
 // U46 (KTD6): kit is the real path of the running kit, which the receipt just vouched for; skills run its bin from it.
+// K1: a hint names a devtwin command in the compact form `devtwin <command>`, followed by FORM_POINTER: the instruction
+// block defines the executable form (src/agents/command-form.mjs). The full form, with both paths, does not fit the
+// start line's 400 bytes next to the kit path. The bound line names the scope, so a command's --scope needs no parsing.
+const hint = (command) => "`devtwin " + command + "` " + FORM_POINTER;
 function startLine(found, key, notices = 0, kit) {
   const kitPart = " Kit: `" + kit + "`.";
   if (found.status === "ambiguous") return "devtwin hook: this folder is bound in more than one scope, so lessons are off." + kitPart;
   const session = kitPart + " Session ID for lesson propose: " + sessionTag(key) + ".";
   if (found.status !== "bound") return "devtwin hook live: this folder is not a bound project." + session;
   const count = found.index.entries.filter((e) => e.reach !== "project" || e.project === found.repo.project).length;
-  const replaced = notices ? " " + notices + " of your lessons " + (notices === 1 ? "was" : "were") + " replaced; run `devtwin lesson notices --scope " + found.repo.scope + "`." : "";
-  return "devtwin hook live: " + plural(count, "lesson") + " for " + found.repo.project + ". Index lines arrive when work matches." + replaced + session;
+  const replaced = notices ? " " + notices + " of your lessons " + (notices === 1 ? "was" : "were") + " replaced; run " + hint("lesson notices --scope " + found.repo.scope) + "." : "";
+  return "devtwin hook live: " + plural(count, "lesson") + " for " + found.repo.project + ". Scope: " + found.repo.scope + ". Index lines arrive when work matches." + replaced + session;
 }
-const overflowLine = (more) => more + (more === 1 ? " more lesson matches" : " more lessons match") + "; run `devtwin lesson match`";
-const blockText = (found, sent, overflow) => [NOTICE + " Load one with `devtwin lesson show --scope " + found.repo.scope + " --id <id>`.", ...sent.map((m) => "- " + m.line), ...(overflow ? [overflow] : [])].join("\n");
+const overflowLine = (more) => more + (more === 1 ? " more lesson matches" : " more lessons match") + "; run " + hint("lesson match") + ".";
+const blockText = (found, sent, overflow) => [NOTICE + " Load one with " + hint("lesson show --scope " + found.repo.scope + " --id <id>") + ".",...sent.map((m) => "- " + m.line), ...(overflow ? [overflow] : [])].join("\n");
 // The block an agent receives: the notice, at most four index lines per session and one overflow line at the cap.
 // mode is set only for an adapter with hooks.deferToolContext: "hold" on its post-tool call, "flush" on its prompt.
 async function deliver(stateRoot, { agent, key, found, matches, now, mode }) {
@@ -198,8 +203,7 @@ function deferred(state, { found, matches, now, hold }) {
   return { text: blockText(found, sent, overflow), lines: sent.length, overflow: overflow ? 1 : 0, ids: sent.map((m) => m.id), next: after };
 }
 // The session-start line when the receipt cannot be trusted. It names the kit and the exact command to run from it, as
-// the skills do, never a devtwin found on PATH.
-const quote = (text) => "'" + text.replaceAll("'", "'\\''") + "'";
+// the skills do, never a devtwin found on PATH. quote is the command form's POSIX quoting (src/agents/command-form.mjs).
 function notVerified(problem, kitRoot, pilotPath) {
   let kit = null;
   try { kit = runningKit(kitRoot); } catch { /* The kit folder is gone: no path to name. */ }
@@ -319,8 +323,8 @@ export const CONFIRM_RENEW_DAYS = 90;
 async function pathsNote(stateRoot, { pilotPath, pilotBytes, kitRoot, now, log }) {
   const { state, confirmedAt } = await confirmationState(stateRoot, { pilotPath, pilotBytes, kitRoot });
   const age = state === "confirmed" ? now.getTime() - Date.parse(confirmedAt) : NaN, fresh = age >= 0 && age < CONFIRM_RENEW_DAYS * DAY_MS;
-  const said = state === "confirmed" ? (fresh ? " Kit and config confirmed." : " The paths confirmation is over " + CONFIRM_RENEW_DAYS + " days old; run `devtwin paths confirm` again.")
-    : state === "mismatch" ? " Kit or config changed since `devtwin paths confirm`." : "";
+  const said = state === "confirmed" ? (fresh ? " Kit and config confirmed." : " The paths confirmation is over " + CONFIRM_RENEW_DAYS + " days old; run " + hint("paths confirm") + " again.")
+    : state === "mismatch" ? " Kit or config changed since the last paths confirmation." : "";
   if (state === "confirmed" && fresh) {
     if (!await kitVerifies(stateRoot, kitRoot)) { log("kit-check-failed"); return null; }
     try { await renewReceipt(stateRoot, now); return said; } catch { log("receipt-renew-failed"); }
@@ -328,7 +332,7 @@ async function pathsNote(stateRoot, { pilotPath, pilotBytes, kitRoot, now, log }
   else if (state === "mismatch") log("paths-changed");
   const expiry = await receiptExpiry(stateRoot), left = expiry ? expiry.getTime() - now.getTime() : Infinity;
   if (left > WARN_MS) return said;
-  return said + " The kit receipt expires in " + plural(Math.max(1, Math.ceil(left / DAY_MS)), "day") + "; run `devtwin hook verify`.";
+  return said + " The kit receipt expires in " + plural(Math.max(1, Math.ceil(left / DAY_MS)), "day") + "; run " + hint("hook verify") + ".";
 }
 // The roots for the note path, from the pilot the receipt vouches for. The full pilot load (with its Git checks) ran
 // at `hook verify`; this keeps assertWritable's fence check, which reads no Git.

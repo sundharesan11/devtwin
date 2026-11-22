@@ -103,7 +103,7 @@ test("hook delivers a lesson for a package named in the prompt before any edit",
   const s = await store(t);
   const start = await hook(s, "claude", "session-start", await payload("claude-session-start", s.repo));
   assert.equal(start.json.hookSpecificOutput.hookEventName, "SessionStart");
-  assert.match(start.context, new RegExp("^devtwin hook live: 1 lesson for example\\.atlas\\. Index lines arrive when work matches\\. " + KIT_RE + "Session ID for lesson propose: ses_[a-f0-9]{24}\\.$"));
+  assert.match(start.context, new RegExp("^devtwin hook live: 1 lesson for example\\.atlas\\. Scope: example\\. Index lines arrive when work matches\\. " + KIT_RE + "Session ID for lesson propose: ses_[a-f0-9]{24}\\.$"));
   assert.ok(start.context.includes(KIT_PART), start.context);
   // The tag is the same for every start of one session, and differs between sessions and agents.
   const tag = /ses_[a-f0-9]{24}/.exec(start.context)[0];
@@ -153,7 +153,7 @@ test("hook sends four index lines then one overflow line at the session cap", as
   const lines = indexLines(first.context);
   assert.equal(lines.length, 4);
   for (const line of lines) assert.ok(Buffer.byteLength(line) <= 242, line);
-  assert.equal(first.context.split("\n").at(-1), "1 more lesson matches; run `devtwin lesson match`");
+  assert.equal(first.context.split("\n").at(-1), "1 more lesson matches; run `devtwin lesson match` (command form: your devtwin instruction block).");
   assert.equal(first.context.split("\n").length, 6);
   // The cap holds for the rest of the session, and the overflow line is sent once.
   const second = await hook(s, "claude", "pre-tool", edit);
@@ -217,7 +217,7 @@ test("hook sends a fifth command lesson match as the overflow line", async (t) =
   await rebuildIndex(s.roots, SCOPE);
   const first = await hook(s, "claude", "pre-tool", await bash(s, "cd app && git push origin main"));
   assert.equal(indexLines(first.context).length, 4);
-  assert.equal(first.context.split("\n").at(-1), "1 more lesson matches; run `devtwin lesson match`");
+  assert.equal(first.context.split("\n").at(-1), "1 more lesson matches; run `devtwin lesson match` (command form: your devtwin instruction block).");
   assert.equal((await hook(s, "claude", "pre-tool", await bash(s, "git push"))).out, "");
   const report = (await runCli(["budget", "report", "--pilot", s.path])).json.result;
   assert.deepEqual([report.totals.events, report.totals.lines, report.totals.overflow, report.totals.bytes], [1, 4, 1, Buffer.byteLength(first.context)]);
@@ -432,7 +432,7 @@ test("hook stops renewing the receipt 90 days after paths confirm and asks for i
   // Renewals every 29 days keep the receipt current while the confirmation is under 90 days old.
   for (const n of [0, 29, 58, 87]) { assert.match(await s.start(day(n)), /Kit and config confirmed\.$/, "day " + n); assert.equal(await s.verifiedAt(), day(n).toISOString()); }
   const old = await s.start(day(91));
-  assert.match(old, /The paths confirmation is over 90 days old; run `devtwin paths confirm` again\./);
+  assert.match(old, /The paths confirmation is over 90 days old; run `devtwin paths confirm` \(command form: your devtwin instruction block\) again\./);
   assert.doesNotMatch(old, /Kit and config confirmed/, "skills ask for the paths again");
   assert.equal(await s.verifiedAt(), day(87).toISOString(), "no renewal after 90 days");
   assert.ok((await hookLog(s)).some((entry) => entry.code === "paths-confirm-old"));
@@ -450,7 +450,7 @@ test("hook drops the confirmation and does not renew after a config edit or a ne
   await writeFile(join(s.kit, ".git/refs/heads/main"), "b".repeat(40) + "\n");
   const moved = await s.start();
   assert.doesNotMatch(moved, /Kit and config confirmed/);
-  assert.match(moved, /Kit or config changed since `devtwin paths confirm`\./);
+  assert.match(moved, /Kit or config changed since the last paths confirmation\./);
   assert.equal(await s.verifiedAt(), before);
   await writeFile(join(s.kit, ".git/refs/heads/main"), "a".repeat(40) + "\n");
   await writeFile(join(s.kit, ".git/HEAD"), "ref: refs/heads/other\n");
@@ -499,7 +499,7 @@ test("hook session start runs the full package kit check before it renews, and c
 test("hook warns at session start when the receipt expires within three days and is not renewed", async (t) => {
   const s = await confirmedStore(t, { receiptAt: new Date(now().getTime() - 28 * 86400000) });
   const line = await s.start();
-  assert.match(line, /The kit receipt expires in 2 days; run `devtwin hook verify`\.$/);
+  assert.match(line, /The kit receipt expires in 2 days; run `devtwin hook verify` \(command form: your devtwin instruction block\)\.$/);
   assert.match(line, /^devtwin hook live: 1 lesson/);
   // A confirmation renews it instead, and the warning goes away.
   await s.confirm();
@@ -507,7 +507,7 @@ test("hook warns at session start when the receipt expires within three days and
 });
 
 // U31 (KTD30): the session summary after the live line.
-const START_LINE = new RegExp("^devtwin hook live: \\d+ lessons? for example\\.atlas\\. Index lines arrive when work matches\\. " + KIT_RE + "Session ID for lesson propose: ses_[a-f0-9]{24}\\.$");
+const START_LINE = new RegExp("^devtwin hook live: \\d+ lessons? for example\\.atlas\\. Scope: example\\. Index lines arrive when work matches\\. " + KIT_RE + "Session ID for lesson propose: ses_[a-f0-9]{24}\\.$");
 const constraint = (requestId, title, body) => { const input = draftFor(SCOPE, PROJECT, { requestId, kind: "constraint", body }); input.draft.title = title; return input; };
 
 test("hook appends the session summary after the live line at session start, within the budget", async (t) => {

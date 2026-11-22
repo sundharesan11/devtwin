@@ -44,7 +44,7 @@ devtwin refuses rather than guesses. When a check fails, it has not written anyt
 
 | Code | Meaning | What to do |
 | --- | --- | --- |
-| `DEVTWIN_PROJECT_UNBOUND` | The worktree or project is not onboarded in that scope. `details.reason` is `not-bound-in-scope` or `worktree-not-confirmed`; `details.remedy` gives the command. | Check you used the right scope. If so, [onboard the worktree](/docs/guides/onboard-a-repository/). |
+| `DEVTWIN_PROJECT_UNBOUND` | The worktree or project is not onboarded in that scope. `details.reason` is `not-bound-in-scope` or `ambiguous-worktree`. A linked worktree of a bound repository resolves, so it never fails here. | Check you used the right scope. If so, [onboard the worktree](/docs/guides/onboard-a-repository/). |
 | `DEVTWIN_SCOPE_UNKNOWN` | The scope has not been added. | Run `scope add`. |
 | `DEVTWIN_BINDING_CONFLICT` | The worktree is bound to another project, or the project belongs to another repository. | Choose the right project ID, or stop and review existing bindings. |
 | `DEVTWIN_NOT_FOUND` | Something named does not exist: a skill workspace, a lock to release, `init` data for `--seed-from-init`, a lesson or lesson proposal ID. | Create it first, or check the name and the scope. |
