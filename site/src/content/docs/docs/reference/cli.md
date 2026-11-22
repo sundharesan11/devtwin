@@ -765,6 +765,8 @@ The level is `full` only when `skills`, `instructions` and `ownerBlock` all work
 
 Compares skill folders with the inventory taken before an install run. Read-only. Fails with `DEVTWIN_ROLLBACK_MISMATCH` on any `devtwin-*` difference.
 
+For a hook install run, it compares devtwin's entries in each hook file with that run's inventory. For the OpenCode plugin file, a file that did not exist before the run and exists now is a devtwin difference: the check fails with `DEVTWIN_ROLLBACK_MISMATCH`, also when the file was edited after the install or another tool wrote it. While an installer journal of the config is incomplete, the hook check fails with `DEVTWIN_RECOVERY_REQUIRED`. Run [`agents recover`](#agents-recover) first.
+
 | Flag | |
 | --- | --- |
 | `--pilot <file>` | Required. |
@@ -1290,13 +1292,13 @@ Previews the managed instruction block and each file it changes. Read-only.
 | `--agent <claude\|codex\|gemini\|antigravity\|opencode>` | Repeatable. Default: `claude`, `codex` and any other agent in the live config. |
 | `--remove` | Preview taking the block out. |
 
-Each action is `create`, `update`, `remove`, `unchanged`, `blocked` (the path is not an approved `instructionTargets` path) or `conflict`. A conflict is an unsafe file, malformed markers (reason `markers`) or a missing agent folder (reason `agent-folder-missing`). devtwin creates no agent folder, for any agent: a target file that does not exist, in a folder that does not exist, is a conflict. Create the folder by hand, then preview again. With `--remove`, such a target is `unchanged`. The result also holds the `block`, its `chars` and any `PREFERENCES_DROPPED` or `PREFERENCES_REFUSED` warning.
+Each action is `create`, `update`, `remove`, `unchanged`, `blocked` (the path is not an approved `instructionTargets` path) or `conflict`. A conflict is an unsafe file, malformed markers (reason `markers`) or a missing agent folder (reason `agent-folder-missing`). devtwin creates no agent folder, for any agent: a target file that does not exist, in a folder that does not exist, is a conflict. Create the folder by hand, then preview again. With `--remove`, such a target is `unchanged`. The result also holds the `block`, its `chars` and any `PREFERENCES_DROPPED`, `PREFERENCES_REFUSED` or `INSTRUCTIONS_NEED_PLUGIN` warning.
 
 Gemini CLI and Antigravity CLI name the same file, `~/.gemini/GEMINI.md`, and one block serves both. When two selected agents name one file, the plan has one action for it, under the first agent in ID order (`antigravity`). A `shared` array then lists the other agent as `{ agent, path, with }`. A plan with no shared file has no `shared` field.
 
 With `--remove` for one of the two agents, the block stays while the other agent is an active user of the file. An active user is an agent that the live config names, or one whose hook file holds devtwin entries from a completed install. The action is then `unchanged` with the reason `shared-file`, and `shared` lists `{ agent, path, keptFor }`. To take the block out, select both agents. A disposable pilot has no active users. Two agents that name one file in different roles are refused with `DEVTWIN_INVALID_INPUT`.
 
-For OpenCode, the plan has one action: the devtwin-owned file `~/.config/opencode/devtwin.md`, which holds the block between the markers. No import line names it, and devtwin never creates or edits an OpenCode `AGENTS.md`. The devtwin plugin file gives the text to the model. `--remove` empties the block and leaves the file.
+For OpenCode, the plan has one action: the devtwin-owned file `~/.config/opencode/devtwin.md`, which holds the block between the markers. No import line names it, and devtwin never creates or edits an OpenCode `AGENTS.md`. The devtwin plugin file gives the text to the model. `--remove` empties the block and leaves the file. When the plugin file is not installed, a plan that writes the block warns with `{ code: "INSTRUCTIONS_NEED_PLUGIN", agent: "opencode", message }`: no OpenCode session reads the block without the plugin. A plugin that devtwin wrote for an earlier kit counts as installed. The warning changes no action, and the apply still writes the file. Warnings are part of the plan fingerprint, so a plan made before the plugin install cannot be applied after it. Preview again then.
 
 ### `instructions apply`
 

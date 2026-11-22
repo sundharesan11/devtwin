@@ -51,16 +51,16 @@ function skillsStep(agent) {
   };
 }
 
+// The one rule for the live hook file of an agent, so the targets, the plugin check and a step's needs agree on a path.
+const liveHookFile = (ctx, agent) => join(agentDirsFor({ home: ctx.pilot.live.home, env: ctx.env ?? process.env })[agent], adapter(agent).hooks.file);
 // The hook settings files of the agents in the live config. For an agent whose hook target is one whole file that
 // devtwin owns (hooks.target "file"), it is that file: a plugin file.
 export function hookTargetsFor(ctx) {
-  const dirs = agentDirsFor({ home: ctx.pilot.live.home, env: ctx.env ?? process.env });
-  return AGENTS.filter((agent) => Object.hasOwn(ctx.pilot.live.skillDirs, agent)).map((agent) => join(dirs[agent], adapter(agent).hooks.file));
+  return AGENTS.filter((agent) => Object.hasOwn(ctx.pilot.live.skillDirs, agent)).map((agent) => liveHookFile(ctx, agent));
 }
 // True when path is the plugin file of an agent, for the home of the live config.
 export function pluginTarget(ctx, path) {
-  const dirs = agentDirsFor({ home: ctx.pilot.live.home, env: ctx.env ?? process.env });
-  return AGENTS.some((agent) => wholeFileHooks(agent) && path === join(dirs[agent], adapter(agent).hooks.file));
+  return AGENTS.some((agent) => wholeFileHooks(agent) && path === liveHookFile(ctx, agent));
 }
 // U9 (one approval): needs(ctx) names the write-class paths a step needs approved in the live config. A setup batch
 // (src/setup/batch.mjs) merges them into one live write-classes change that runs before every other step.
@@ -93,7 +93,7 @@ function hooksStep(agent) {
       undo: "agents uninstall --hooks --agent " + agent + " removes only devtwin's entries. A backup of the file is kept in the run folder." };
   return {
     id: "hooks-" + agent, agent, title: "Hooks for " + agent, available: true, owner: true, skip: agentSkip(agent),
-    needs: (ctx) => ctx.pilot.live ? { hookTargets: hookTargetsFor(ctx).filter((path) => path === join(agentDirsFor({ home: ctx.pilot.live.home, env: ctx.env ?? process.env })[agent], adapter(agent).hooks.file)) } : {},
+    needs: (ctx) => ctx.pilot.live ? { hookTargets: hookTargetsFor(ctx).filter((path) => path === liveHookFile(ctx, agent)) } : {},
     what: text.what,
     why: "The hook gives the agent matching lessons at the moment it touches an area, and denies owner-only devtwin commands from agent shells.",
     undo: text.undo,

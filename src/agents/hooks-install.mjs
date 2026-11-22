@@ -278,7 +278,8 @@ export async function applyHooks(roots, pilot, input, { fingerprint, runId, now 
       for (const [i, entry] of entries.entries()) {
         journal.started.push(i);
         await save();
-        const expected = expectedEntries(entry.agent, context);
+        // rewrite never reads the expected entries of a whole-file target, so its text is not built again here.
+        const expected = wholeFile(entry.agent) ? null : expectedEntries(entry.agent, context);
         // Only the removal of a whole-file target names the bytes to remove. Without priorHash a null result fails.
         const priorHash = wholeFile(entry.agent) && entry.status === "remove" ? entry.before : undefined;
         await editOwnedFile(roots, { path: entry.path, writeClass: "hookTargets", runId, priorHash, edit: (text) => {
@@ -359,17 +360,24 @@ function diff(before, now) {
   return out;
 }
 // A whole-file target is compared by its hash row. The ledger is read now, so a file that a later journal wrote is
-// devtwin's, and a same-name file that no journal wrote is foreign.
+// devtwin's. A whole-file target that did not exist before the run and exists now is a devtwin difference whoever
+// wrote it: OpenCode loads any file at that path, and an edited devtwin plugin has a hash no journal holds. Its row
+// moves from the foreign list to the devtwin list. While an installer journal of this config is incomplete the ledger
+// is not final, so the check refuses as the apply does.
 export async function hookRollbackCheck(pilot, inventory, runId) {
   const valid = inventory?.schemaVersion === 1 && inventory.runId === runId && typeof inventory.pilotPath === "string" && ["install", "uninstall"].includes(inventory.mode) && Array.isArray(inventory.files)
     && inventory.files.every((f) => AGENTS.includes(f?.agent) && typeof f.path === "string" && Array.isArray(f.devtwin) && Array.isArray(f.foreign));
   if (!valid) throw new DevtwinError("INTEGRITY", "Invalid install inventory", { runId });
   if (inventory.configId !== configIdOf(pilot)) throw new DevtwinError("GATE_REQUIRED", "Inventory belongs to another live config", { runId });
   if (inventory.mode !== "install") throw new DevtwinError("INVALID_INPUT", "Rollback check needs an install run", { runId });
+  // install.mjs imports this module, so the helper comes in through a dynamic import, as in applyHooks.
+  const { incompleteInstallRuns } = await import("./install.mjs");
+  if ((await incompleteInstallRuns(pilot)).length) throw new DevtwinError("RECOVERY_REQUIRED", "Incomplete installer journal");
   const approved = pilot.writeClasses?.hookTargets ?? [], owned = ledger(pilot, await readJournals(pilot.stateRoot));
   const files = inventory.files.map((before) => {
     if (!approved.includes(before.path)) throw new DevtwinError("GATE_REQUIRED", "Inventory names a file outside this live config", { agent: before.agent });
-    const now = inventoryHookFile(before.agent, before.path, inventory.pilotPath, owned);
+    let now = inventoryHookFile(before.agent, before.path, inventory.pilotPath, owned);
+    if (wholeFile(before.agent) && !before.existed && now.existed) now = { ...now, devtwin: now.devtwin.length ? now.devtwin : [{ event: FILE_EVENT, sha256: now.sha256 }], foreign: [] };
     return { agent: before.agent, path: before.path, existedBefore: before.existed, existsNow: now.existed, devtwin: diff(before.devtwin, now.devtwin), foreign: diff(before.foreign, now.foreign) };
   });
   const report = { runId, kind: HOOK_INVENTORY, recordedAt: inventory.recordedAt, files };

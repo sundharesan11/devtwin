@@ -998,5 +998,7 @@
   "live init and live add-agent accept opencode with the shared skills folder",
   "Codex, Gemini CLI and OpenCode share one skills install, and an uninstall for one keeps it for the others",
   "the instruction plans and dialogs of Claude Code, Codex, Gemini CLI and Antigravity CLI are unchanged",
-  "the OpenCode plugin bakes the stable Node link, so a Homebrew upgrade does not make it outdated"
+  "the OpenCode plugin bakes the stable Node link, so a Homebrew upgrade does not make it outdated",
+  "the rollback check of a plugin install fails while an edited plugin is in place, and JSON targets keep their rule",
+  "an OpenCode instruction plan warns while the devtwin plugin file is not installed, and changes nothing else"
 ]

@@ -70,13 +70,28 @@ function homeFor(pilot, targetHome) {
 }
 // An adapter with instructions.owned keeps the block in devtwin.md and imports it from its instructions file. One with
 // instructions.mode "owned-only" (OpenCode) gets devtwin.md alone: nothing imports the file, so no second file is
-// planned, and the mode is read first so that it never reaches the import below. Every other adapter gets the block
-// itself in its instructions file.
+// planned, and the mode is read first so that it never reaches the import below. Its path is the adapter's own
+// instructions file, the path the fence approves (classShape in src/config/pilot.mjs). Every other adapter gets the
+// block itself in its instructions file.
 function targetsOf(dirs, agent) {
   const { instructions } = adapter(agent), file = join(dirs[agent], instructions.file), owned = join(dirs[agent], OWNED_FILE);
-  if (instructions.mode === "owned-only") return [{ agent, role: "owned-file", path: owned, body: (block) => block }];
+  const ownedTarget = (path) => ({ agent, role: "owned-file", path, body: (block) => block });
+  if (instructions.mode === "owned-only") return [ownedTarget(file)];
   if (!instructions.owned) return [{ agent, role: "block", path: file, body: (block) => block }];
-  return [{ agent, role: "owned-file", path: owned, body: (block) => block }, { agent, role: "import", path: file, body: () => "@" + owned }];
+  return [ownedTarget(owned), { agent, role: "import", path: file, body: () => "@" + owned }];
+}
+// An owned-only adapter (OpenCode) reads no instruction file itself: the block reaches it only through devtwin's plugin
+// file, the agent's whole-file hook target. A warning, not a conflict: the file can be written before the plugin.
+// The plugin counts as installed when the hook plan finds devtwin's file there, current (installed) or from an
+// earlier kit (update); a missing, blocked or foreign file does not count.
+async function pluginWarnings(pilot, { targetHome, agents, kitRoot }) {
+  const warnings = [];
+  for (const agent of [...new Set(agents)].sort().filter((id) => adapter(id).instructions.mode === "owned-only")) {
+    const [action] = (await planHooks(pilot, { targetHome, agents: [agent], mode: "install", kitRoot })).actions;
+    if (["installed", "update"].includes(action?.status)) continue;
+    warnings.push({ code: "INSTRUCTIONS_NEED_PLUGIN", agent, message: adapter(agent).name + " reads this block only through the devtwin plugin file " + adapter(agent).hooks.display + ", which is not installed. Run agents install --hooks --agent " + agent + "." });
+  }
+  return warnings;
 }
 // One target per path. A path two agents name is planned once, under the first of them; also names the others. A file
 // holds one marker block, so the same path in two roles (a block and an import) is refused.
@@ -145,7 +160,9 @@ export async function planInstructions(roots, pilot, { targetHome, agents, remov
   }
   const warnings = [
     ...(rendered.dropped.length ? [{ code: "PREFERENCES_DROPPED", message: "The instruction block is full. The oldest preferences are left out; retire some with pref retire.", dropped: rendered.dropped }] : []),
-    ...(refused.length ? [{ code: "PREFERENCES_REFUSED", message: "These preferences failed a check and are left out. Retire them with pref retire.", refused }] : [])
+    ...(refused.length ? [{ code: "PREFERENCES_REFUSED", message: "These preferences failed a check and are left out. Retire them with pref retire.", refused }] : []),
+    // A remove delivers no block, so it needs no plugin. A plan for the other agents never has this warning.
+    ...(remove ? [] : await pluginWarnings(pilot, { targetHome, agents, kitRoot }))
   ];
   // shared is present only when a path has more than one agent, so a plan with distinct paths keeps its fingerprint.
   return finalizePlan({ kind: "instructions", mode: remove ? "remove" : "install", block: remove ? null : rendered.text, chars: rendered.text.length, preferences: rendered.kept, actions, warnings, ...(shared.length ? { shared } : {}) });

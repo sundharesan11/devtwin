@@ -357,6 +357,9 @@ test("the hook inventory, the recovery of an interrupted run and the rollback ch
   assert.deepEqual(inventoryHookFile("opencode", h.file, pilotPath), { ...none, existed: true, sha256: entry.sha256, foreign: [{ event: "file", sha256: entry.sha256 }] });
   assert.equal((await installStatus(h.roots, h.pilot, { targetHome: h.home })).status, "RECOVERY_REQUIRED");
   await assert.rejects(ocHooks(h, "install", "run_ocblock01"), { code: "DEVTWIN_RECOVERY_REQUIRED" });
+  // The rollback check refuses too while the journal is incomplete, as the apply does: the ledger cannot say yet
+  // whether the file is devtwin's.
+  await assert.rejects(rollbackCheck(h.roots, h.pilot, { runId: "run_occrash01" }), { code: "DEVTWIN_RECOVERY_REQUIRED" });
   // Recovery compares the file with the journal's hashes: the write finished, so the entry is marked complete.
   const recovery = await planRecovery(h.roots, h.pilot);
   assert.deepEqual(recovery.actions, [{ runId: "run_occrash01", index: 0, hook: true, agent: "opencode", path: h.file, op: "hook-complete", observed: entry.sha256 }]);
@@ -386,12 +389,15 @@ test("the hook inventory, the recovery of an interrupted run and the rollback ch
     return [out.json.result.status, out.json.result.files];
   };
   assert.deepEqual(await check(), ["ok", [{ agent: "opencode", path: h.file, existedBefore: false, existsNow: false, devtwin: [], foreign: [] }]]);
-  // A same-name file that no journal wrote is foreign: recovery holds an entry that meets it, the inventory keeps
-  // its hash only, and the check lists it as a foreign change and still passes.
+  // A same-name file that no journal wrote is foreign: recovery holds an entry that meets it and the inventory keeps
+  // its hash only. The check still fails: the run started with no file at that path, and OpenCode loads any file
+  // there, so the state before the run is not back.
   await writeFile(h.file, OWN);
   for (const intended of [create, remove]) assert.deepEqual(hookRecoveryFor(intended), { op: "hold", reason: "unmatched-file", observed: hash(OWN) });
   assert.deepEqual(inventoryHookFile("opencode", h.file, pilotPath), { ...none, existed: true, sha256: hash(OWN), foreign: [{ event: "file", sha256: hash(OWN) }] });
-  assert.deepEqual(await check(), ["ok", [{ agent: "opencode", path: h.file, existedBefore: false, existsNow: true, devtwin: [], foreign: [{ change: "added", row: { event: "file", sha256: hash(OWN) } }] }]]);
+  const own = await runCli(["agents", "rollback-check", "--pilot", h.pilotPath, "--run-id", "run_occrash01"]);
+  assert.deepEqual([own.code === 0, own.json.error.code, own.json.error.details.files], [false, "DEVTWIN_ROLLBACK_MISMATCH",
+    [{ agent: "opencode", path: h.file, existedBefore: false, existsNow: true, devtwin: [{ change: "added", row: { event: "file", sha256: hash(OWN) } }], foreign: [] }]]);
   // A file that cannot be read safely holds the entry too.
   await chmod(h.file, 0o664);
   assert.deepEqual(hookRecoveryFor(create), { op: "hold", reason: "unsafe-file", observed: null });
@@ -400,6 +406,36 @@ test("the hook inventory, the recovery of an interrupted run and the rollback ch
   await applyHooks(m.roots, m.pilot, input, { fingerprint: (await planHooks(m.pilot, input)).fingerprint, runId: "run_ocmixed01", now: now() });
   assert.deepEqual((await stored(m, "run_ocmixed01", "inventory")).files.find((f) => f.agent === "opencode"), { agent: "opencode", path: m.file, existed: true, sha256: hash(OWN), devtwin: [], foreign: [{ event: "file", sha256: hash(OWN) }] });
   assert.equal(await read(m), OWN);
+});
+
+test("the rollback check of a plugin install fails while an edited plugin is in place, and JSON targets keep their rule", async (t) => {
+  const h = await ocPilot(t, { more: [".claude/settings.json"] }), settings = join(h.home, ".claude/settings.json");
+  await ocHooks(h, "install", "run_ocrbedit1");
+  // One byte changed: no journal wrote these bytes, so the file is no devtwin row. The run started with no file at
+  // that path, so the file that is there now is a devtwin difference all the same.
+  const edited = h.text.replace("TIMEOUT_MS = 10000", "TIMEOUT_MS = 10001");
+  assert.equal(edited.length, h.text.length);
+  await writeFile(h.file, edited);
+  const changed = { agent: "opencode", path: h.file, existedBefore: false, existsNow: true, devtwin: [{ change: "added", row: { event: "file", sha256: hash(edited) } }], foreign: [] };
+  await assert.rejects(rollbackCheck(h.roots, h.pilot, { runId: "run_ocrbedit1" }), (e) => { assert.deepEqual(e.details.files, [changed]); return e.code === "DEVTWIN_ROLLBACK_MISMATCH"; });
+  // The real CLI fails the same way.
+  const out = await runCli(["agents", "rollback-check", "--pilot", h.pilotPath, "--run-id", "run_ocrbedit1"]);
+  assert.deepEqual([out.code === 0, out.json.error.code, out.json.error.details.files], [false, "DEVTWIN_ROLLBACK_MISMATCH", [changed]]);
+  // With the file gone the check passes.
+  await rm(h.file);
+  assert.deepEqual((await rollbackCheck(h.roots, h.pilot, { runId: "run_ocrbedit1" })).files, [{ ...changed, existsNow: false, devtwin: [] }]);
+  // A JSON hook file keeps its rule: a file that the run created and that now holds only the developer's entries
+  // passes the check and lists them as foreign.
+  const claude = async (mode, runId) => {
+    const input = hookInput(h, mode, KIT, ["claude"]);
+    return applyHooks(h.roots, h.pilot, input, { fingerprint: (await planHooks(h.pilot, input)).fingerprint, runId, now: now() });
+  };
+  await claude("install", "run_ocrbjson1");
+  await claude("uninstall", "run_ocrbjson2");
+  const lint = { matcher: "Bash", hooks: [{ type: "command", command: "npm run lint" }] };
+  await writeFile(settings, JSON.stringify({ hooks: { PreToolUse: [lint] } }, null, 2) + "\n");
+  const check = await rollbackCheck(h.roots, h.pilot, { runId: "run_ocrbjson1" });
+  assert.deepEqual([check.status, check.files.map((f) => [f.agent, f.existedBefore, f.existsNow, f.devtwin, f.foreign.map((c) => c.change)])], ["ok", [["claude", false, true, [], ["added"]]]]);
 });
 
 test("editOwnedFile removes a file only for the hookTargets class with the expected prior hash", async (t) => {

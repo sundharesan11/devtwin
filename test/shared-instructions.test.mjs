@@ -40,12 +40,13 @@ function routes({ pilot, home, kitRoot, extra = [] }) {
   return { dialogs, cli, ok, apply };
 }
 // A disposable pilot whose first fake agent home has GEMINI.md approved as an instruction target and the Antigravity
-// CLI hooks file approved as a hook target. Each path in instructionTargets is an approved instruction target too.
-async function disposable(t, { instructionTargets = [] } = {}) {
+// CLI hooks file approved as a hook target. Each path in instructionTargets is an approved instruction target too, and
+// each path in hookTargets an approved hook target.
+async function disposable(t, { instructionTargets = [], hookTargets = [] } = {}) {
   const p = await makePilot(t), home = p.agentHomes[0], file = join(home, ".gemini/GEMINI.md");
   const more = instructionTargets.map((rel) => join(home, rel));
   for (const dir of [join(home, ".gemini/config"), ...more.map((path) => dirname(path))]) await mkdir(dir, { recursive: true });
-  const pilotPath = await p.with({ writeClasses: { instructionTargets: [file, ...more], hookTargets: [join(home, ".gemini/config/hooks.json")] } });
+  const pilotPath = await p.with({ writeClasses: { instructionTargets: [file, ...more], hookTargets: [join(home, ".gemini/config/hooks.json"), ...hookTargets.map((rel) => join(home, rel))] } });
   const pilot = await loadPilot(pilotPath, { home: p.fakeHome, kitRoot: KIT, env: {} }), roots = rootsFromPilot(pilot);
   await applyInit(roots, { actorRefs: ["email:owner@example.com"], preferences: {}, now });
   const pref = (n, text, title = "Rule " + n) => addPersonalRecord(roots, { requestId: "req_sharedpref" + String(n).padStart(4, "0"), recordedBy: { actor: "human", runId: "run_cli00001" }, draft: { kind: "preference", class: "lesson", reach: "personal", status: "observed", title, body: text + "\n" } }, { now: () => new Date(now().getTime() + n * 1000) });
@@ -436,6 +437,43 @@ test("an instruction target in a missing agent folder is a conflict, and the app
   // With the folder in place the same plan creates the file, as it always did.
   await mkdir(codexDir);
   assert.deepEqual(rows(await d.ok(["instructions", "plan", ...CODEX])), [["codex", "block", "create", null]]);
+});
+
+test("an OpenCode instruction plan warns while the devtwin plugin file is not installed, and changes nothing else", async (t) => {
+  const PLUGIN = ".config/opencode/plugins/devtwin.js";
+  const s = await disposable(t, { instructionTargets: [OPENCODE, ".codex/AGENTS.md"], hookTargets: [PLUGIN] }), owned = join(s.home, OPENCODE), plugin = join(s.home, PLUGIN), ONE = ["--agent", "opencode"];
+  const WARNING = { code: "INSTRUCTIONS_NEED_PLUGIN", agent: "opencode", message: "OpenCode reads this block only through the devtwin plugin file ~/.config/opencode/plugins/devtwin.js, which is not installed. Run agents install --hooks --agent opencode." };
+  const need = (plan) => plan.warnings.filter((w) => w.code === "INSTRUCTIONS_NEED_PLUGIN");
+  const hooks = async (route) => { const preview = await s.ok(["agents", route, "--hooks", ...ONE]); return s.ok(["agents", route, "--hooks", ...ONE, "--apply", "--plan-fingerprint", preview.fingerprint]); };
+  // No plugins folder: the hook plan is blocked, so the plan warns. The plan and the apply are as they were: the
+  // file is created and the warning comes back with the result.
+  const first = await s.apply(ONE);
+  assert.deepEqual([need(first.plan), targets(first.plan), first.result.applied, first.result.written.map((w) => w.path), need(first.result)], [[WARNING], [["opencode", "owned-file", owned, "create"]], true, [owned], [WARNING]]);
+  // A plugins folder with no plugin file, and a plugin file that devtwin did not write: still not installed.
+  await mkdir(dirname(plugin));
+  assert.deepEqual(need(await s.ok(["instructions", "plan", ...ONE])), [WARNING], "no plugin file");
+  await writeFile(plugin, "export default { id: \"sample\" };\n");
+  assert.deepEqual(need(await s.ok(["instructions", "plan", ...ONE])), [WARNING], "a foreign plugin file");
+  await rm(plugin);
+  // The warning is part of the plan, so of its fingerprint: a plan made before the plugin install is stale after it.
+  await s.pref(1, "Prefer small pull requests.", "Small PRs");
+  const stale = await s.ok(["instructions", "plan", ...ONE]);
+  assert.deepEqual(need(stale), [WARNING]);
+  // After the plugin install through the real CLI, the plan has no such warning.
+  assert.equal((await hooks("install")).applied, true);
+  const fresh = await s.ok(["instructions", "plan", ...ONE]);
+  assert.deepEqual([need(fresh), rows(fresh), fresh.warnings], [[], [["opencode", "owned-file", "update", null]], []]);
+  const late = await s.cli(["instructions", "apply", ...ONE, "--plan-fingerprint", stale.fingerprint]);
+  assert.deepEqual([late.ok, late.error.code], [false, "DEVTWIN_PLAN_MISMATCH"]);
+  assert.equal((await s.ok(["instructions", "apply", ...ONE, "--plan-fingerprint", fresh.fingerprint])).applied, true);
+  // A plan for the other agents never has the warning, with or without the plugin. A remove has none either: it
+  // delivers no block.
+  for (const args of [["--agent", "codex"], ["--agent", "claude", "--agent", "codex"], [...ONE, "--remove"]]) assert.deepEqual(need(await s.ok(["instructions", "plan", ...args])), [], args.join(" "));
+  // After the plugin uninstall the warning is back, also in a plan that holds another agent.
+  assert.equal((await hooks("uninstall")).applied, true);
+  assert.equal(existsSync(plugin), false);
+  assert.deepEqual(need(await s.ok(["instructions", "plan", "--agent", "codex", ...ONE])), [WARNING]);
+  assert.deepEqual(need(await s.ok(["instructions", "plan", "--agent", "codex"])), []);
 });
 
 test("the instruction plans and dialogs of Claude Code, Codex, Gemini CLI and Antigravity CLI are unchanged", async (t) => {

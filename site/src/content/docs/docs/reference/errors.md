@@ -93,10 +93,10 @@ devtwin refuses rather than guesses. When a check fails, it has not written anyt
 | Code | Meaning | What to do |
 | --- | --- | --- |
 | `DEVTWIN_BUSY` | Another devtwin command holds a lock, or the lock owner is still running. | Wait for it. If nothing is running, preview [`locks release`](/docs/guides/coding-agents/#clear-a-stale-lock). Never delete the lock by hand. |
-| `DEVTWIN_RECOVERY_REQUIRED` | An earlier operation stopped part way, or stored state is incomplete (binding, manifest, journal). New applies are blocked. | For skill installs, run [`agents recover`](/docs/guides/coding-agents/#recover-an-interrupted-install). Otherwise read `details.remedy`, keep the files, and stop. |
+| `DEVTWIN_RECOVERY_REQUIRED` | An earlier operation stopped part way, or stored state is incomplete (binding, manifest, journal). New applies are blocked, and so is the hook rollback check. | For skill and hook installs, run [`agents recover`](/docs/guides/coding-agents/#recover-an-interrupted-install). Otherwise read `details.remedy`, keep the files, and stop. |
 | `DEVTWIN_INTEGRITY` | Stored data failed a check: a record bundle doesn't match its hashes or ID, a staged file changed, a seeded template file was edited, or a backup archive is changed or was made with another key. `handoff export` names corrupt record IDs in `details.records`. | Don't edit, rename or delete the files. Run `doctor` (its `bundles` check counts corrupt records) and review the files under `dataRoot`. |
 | `DEVTWIN_SOURCE_CHANGED` | A file changed while devtwin was reading it, or between check and write. | Let the file settle and retry. |
-| `DEVTWIN_ROLLBACK_MISMATCH` | `agents rollback-check` found `devtwin-*` entries that differ from the pre-install inventory. | Review the listed changes. Run the check right after uninstalling. |
+| `DEVTWIN_ROLLBACK_MISMATCH` | `agents rollback-check` found `devtwin-*` entries or devtwin hook entries that differ from the pre-install inventory, or an OpenCode plugin file where the run started with none. | Review the listed changes. Run the check right after uninstalling. |
 | `DEVTWIN_STORAGE_ERROR` | A filesystem operation devtwin needs, such as hard links, failed. | Use a local filesystem that supports hard links. |
 
 ## Git

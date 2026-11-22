@@ -57,6 +57,10 @@ test("opencode adapter data: the shared skills folder, the plugin file, the owne
   // [OpenCode hook, devtwin hook event, tools]. The prompt hook sends session-start once and user-prompt every time.
   assert.deepEqual(hooks.events, [["prompt", "session-start", null], ["prompt", "user-prompt", null], ["execute.before", "pre-tool", "shell"], ["execute.after", "post-tool", "shell|read|edit|write|patch|grep|glob"],
     ["compaction", "pre-compact", null], ["experimental.idle", "stop", null]]);
+  // No code reads that table: the plugin text is the mapping that runs. Each hook name and each event name in the
+  // table is a string literal of that text, so the two cannot drift apart.
+  const generated = hooks.content({ kitRoot: "/opt/example-kit", pilotPath: "/x/live.json", nodePath: "/opt/example/bin/node" });
+  for (const [hook, event] of hooks.events) for (const name of [hook, event]) assert.ok(generated.includes(JSON.stringify(name)), name);
   // parse reads the tool names of both OpenCode lines; the plugin itself runs on the 2.x names only.
   assert.deepEqual(hooks.tools, { shell: ["shell", "bash"], read: ["read"], edit: ["edit", "write", "patch", "apply_patch"], search: ["grep", "glob"] });
   assert.deepEqual(EVENTS.map((event) => hooks.compacted(event, { source: "compact" })), [false, false, false, false, true, false]);
@@ -244,7 +248,7 @@ async function loadPlugin(t, { patch = (text) => text, kitName = "kit", pilotNam
   await mkdir(join(config, "plugins"), { recursive: true });
   await mkdir(ws);
   if (!context.kitRoot) { await mkdir(join(kit, "bin"), { recursive: true }); if (stub) await writeFile(join(kit, "bin/devtwin.mjs"), STUB); }
-  const text = adapter("opencode").hooks.content({ kitRoot: kit, pilotPath, ...context }), file = join(config, "plugins/devtwin.mjs");
+  const text = adapter("opencode").hooks.content({ kitRoot: kit, pilotPath, nodePath: process.execPath, ...context }), file = join(config, "plugins/devtwin.mjs");
   await writeFile(file, patch(text));
   const mod = await import(pathToFileURL(file).href), plugin = mod.default, fake = fakeCtx(ws, ctxOptions);
   assert.equal(await plugin.setup(fake.ctx), undefined);
@@ -280,13 +284,13 @@ test("the generated OpenCode plugin is valid ESM that imports only node:child_pr
   for (const banned of [/\bimport\s*\(/, /\brequire\s*\(/, /\beval\s*\(/, /\bFunction\s*\(/, /\bexec(?:Sync|File|FileSync)?\s*\(/, /shell\s*:/, /process\.env/]) assert.doesNotMatch(text, banned);
   // Each path is one JSON string, once. The limits the plan names are in the text as plain numbers.
   for (const [name, value] of [["NODE", plain.nodePath], ["KIT", plain.kitRoot], ["PILOT", plain.pilotPath]]) assert.equal(text.split(name + " = " + JSON.stringify(value)).length - 1, 1, name);
-  for (const constant of ["TIMEOUT_MS = 10000", "MAX_OUTPUT = 262144", "REREAD_MS = 1000"]) assert.equal(text.split(constant).length - 1, 1, constant);
+  for (const constant of ["TIMEOUT_MS = 10000", "MAX_OUTPUT = 262144", "REREAD_MS = 1000", "MAX_SESSIONS = 4096"]) assert.equal(text.split(constant).length - 1, 1, constant);
   assert.equal(text.split("Date.now()").length - 1, 1);
-  // The same context gives the same bytes. Without a Node path, the path of the running Node is baked in.
+  // The same context gives the same bytes.
   assert.equal(content({ ...plain }), text);
-  assert.equal(content({ kitRoot: plain.kitRoot, pilotPath: plain.pilotPath }), swap(text, JSON.stringify(plain.nodePath), JSON.stringify(process.execPath)));
-  // A path that is not a non-empty string gives no plugin.
-  for (const bad of [{ ...plain, kitRoot: undefined }, { ...plain, pilotPath: 7 }, { ...plain, nodePath: "" }, { ...plain, kitRoot: null }]) assert.throws(() => content(bad), (e) => e.code === "DEVTWIN_INVALID_INPUT" && e.details.field === "hookContext");
+  // A path that is not a non-empty string gives no plugin. The Node path has no default: only the hook context names
+  // it, so the running Node is never baked in by chance.
+  for (const bad of [{ ...plain, kitRoot: undefined }, { ...plain, pilotPath: 7 }, { ...plain, nodePath: "" }, { ...plain, kitRoot: null }, { kitRoot: plain.kitRoot, pilotPath: plain.pilotPath }, undefined]) assert.throws(() => content(bad), (e) => e.code === "DEVTWIN_INVALID_INPUT" && e.details.field === "hookContext");
   // A quote, a backslash, a newline, a dollar sign and a backtick in a path do not change the program: the text is
   // the plain text with the three strings replaced, and the module loads and names the exact paths.
   const odd = "\"i't\\x\n$HOME`id`${0}\";globalThis.devtwinEscaped=1;\"";
@@ -416,8 +420,35 @@ test("the OpenCode plugin sends each event to the hook command and applies the r
   await hooks.prompt(third);
   assert.equal(third.prompt.text, "go\n\nSTART");
   assert.equal((await h.take()).length, 2);
+  // A first prompt with no text, such as one with an attachment only, sends user-prompt alone: the session-start line
+  // has no text to ride on, so it waits for the next prompt that has text.
+  await h.reply({ "session-start": said({ context: "START" }), "user-prompt": said({ context: "LESSON" }) });
+  for (const [label, empty] of [["no prompt", { sessionID: "ses_notext0001", messageID: "msg_example0001" }], ["no text", { ...promptEvent(undefined, "ses_notext0001"), prompt: { parts: [] } }], ["text 7", { ...promptEvent(7, "ses_notext0001") }]]) {
+    const before = JSON.stringify(empty);
+    assert.equal(await hooks.prompt(empty), undefined, label);
+    assert.equal(JSON.stringify(empty), before, label);
+    assert.deepEqual(await h.take(), [sent("user-prompt", body("UserPromptSubmit", "ses_notext0001"))], label);
+  }
+  const late = promptEvent("now with text", "ses_notext0001"), later = promptEvent("and more", "ses_notext0001");
+  await hooks.prompt(late);
+  await hooks.prompt(later);
+  assert.deepEqual([late.prompt.text, later.prompt.text], ["now with text\n\nSTART\n\nLESSON", "and more\n\nLESSON"]);
+  assert.deepEqual(await h.take(), [sent("session-start", body("SessionStart", "ses_notext0001")), sent("user-prompt", { ...body("UserPromptSubmit", "ses_notext0001"), prompt: "now with text" }),
+    sent("user-prompt", { ...body("UserPromptSubmit", "ses_notext0001"), prompt: "and more" })]);
   // The marker line belongs to a tool result only: no prompt text has it.
-  for (const event of [one, two, other, again, third]) assert.ok(!event.prompt.text.includes("devtwin hook note"), event.prompt.text);
+  for (const event of [one, two, other, again, third, late, later]) assert.ok(!event.prompt.text.includes("devtwin hook note"), event.prompt.text);
+  // The plugin keeps at most MAX_SESSIONS session IDs and drops the oldest one first. The test loads the same text with
+  // that one number set to 2: after A, B and C, A was dropped and gets session-start again, which drops B; C keeps it.
+  const few = await loadPlugin(t, { patch: (source) => swap(source, "MAX_SESSIONS = 4096", "MAX_SESSIONS = 2") });
+  await few.reply({ "session-start": said({ context: "START" }) });
+  const order = [];
+  for (const id of ["ses_capa0001", "ses_capb0001", "ses_capc0001", "ses_capa0001", "ses_capc0001", "ses_capb0001"]) {
+    const event = promptEvent("go", id);
+    await few.hooks.prompt(event);
+    order.push([id, event.prompt.text]);
+  }
+  assert.deepEqual(order, [["ses_capa0001", "go\n\nSTART"], ["ses_capb0001", "go\n\nSTART"], ["ses_capc0001", "go\n\nSTART"], ["ses_capa0001", "go\n\nSTART"], ["ses_capc0001", "go"], ["ses_capb0001", "go\n\nSTART"]]);
+  assert.deepEqual((await few.take(["args"])).map((row) => row.args[2]), ["session-start", "user-prompt", "session-start", "user-prompt", "session-start", "user-prompt", "session-start", "user-prompt", "user-prompt", "session-start", "user-prompt"]);
 
   // compaction and experimental.idle send their events and change nothing.
   await h.reply({ "*": said({ context: "LESSON", decision: "deny", reason: "x" }) });
@@ -425,6 +456,14 @@ test("the OpenCode plugin sends each event to the hook command and applies the r
   assert.deepEqual([await hooks.compaction(compaction), await hooks["experimental.idle"](idle)], [undefined, undefined]);
   assert.deepEqual([compaction, idle], [{ sessionID: SESSION, agent: "build", system: [{ type: "text", text: "s" }], messages: [] }, { sessionID: SESSION, background: [] }]);
   assert.deepEqual(await h.take(), [sent("pre-compact", body("PreCompact")), sent("stop", body("Stop"))]);
+  // After a compaction the next prompt of that session sends session-start again, as Claude Code and Codex get the
+  // session-start context again after a compaction. Another session keeps its state.
+  await h.reply({ "session-start": said({ context: "START" }), "user-prompt": said({ context: "LESSON" }) });
+  const resumed = promptEvent("and the seeds"), next = promptEvent("and the users"), kept = promptEvent("hello", "ses_other0001");
+  for (const event of [resumed, next, kept]) await hooks.prompt(event);
+  assert.deepEqual([resumed.prompt.text, next.prompt.text, kept.prompt.text], ["and the seeds\n\nSTART\n\nLESSON", "and the users\n\nLESSON", "hello\n\nLESSON"]);
+  assert.deepEqual(await h.take(), [sent("session-start", body("SessionStart")), sent("user-prompt", { ...body("UserPromptSubmit"), prompt: "and the seeds" }),
+    sent("user-prompt", { ...body("UserPromptSubmit"), prompt: "and the users" }), sent("user-prompt", { ...body("UserPromptSubmit", "ses_other0001"), prompt: "hello" })]);
 
   // context: the text of <config folder>/devtwin.md becomes one more system part. No hook command runs for it.
   await writeFile(join(h.config, "devtwin.md"), "## devtwin\n\nBLOCK A\n");

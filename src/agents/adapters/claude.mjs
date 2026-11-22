@@ -14,7 +14,8 @@ export function formatClaudeLike(result) {
 // lessons accept every one of them from either agent.
 export const SHELL_TOOLS = Object.freeze(["Bash", "shell", "local_shell", "exec_command"]);
 const FILE_TOOLS = new Set(["Read", "Edit", "Write", "MultiEdit", "NotebookEdit"]), EDIT_TOOLS = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]), DIR_TOOLS = new Set(["Glob", "Grep"]);
-const str = (value) => typeof value === "string" && value.length > 0 && value.length <= 4096 ? value : null;
+// A payload string the hook reads: a non-empty string of at most 4096 characters, else null. OpenCode shares it.
+export const str = (value) => typeof value === "string" && value.length > 0 && value.length <= 4096 ? value : null;
 export const kindOf = (tools, name) => Object.keys(tools).find((kind) => tools[kind].includes(name)) ?? null;
 const TOOLS = Object.freeze({ shell: SHELL_TOOLS, read: Object.freeze(["Read"]), edit: Object.freeze([...EDIT_TOOLS]), search: Object.freeze([...DIR_TOOLS]) });
 // The normalized payload the hook code reads: the event (the agent's own name, which is devtwin's internal name here),

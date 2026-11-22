@@ -1,7 +1,7 @@
 import { isAbsolute, join } from "node:path";
 import { DevtwinError } from "../../errors.mjs";
 import { shellPaths, patchPaths, commandText } from "../../hooks/tool-text.mjs";
-import { kindOf } from "./claude.mjs";
+import { kindOf, str } from "./claude.mjs";
 // The OpenCode adapter (OpenCode 2.x).
 //   skills        ~/.agents/skills. By the OpenCode source, OpenCode reads it and it wins there over ~/.claude/skills;
 //                 a real session listed the devtwin skills that are installed in it. Codex and Gemini CLI read the
@@ -52,7 +52,6 @@ const BEFORE_TOOLS = Object.freeze(["shell"]), AFTER_TOOLS = Object.freeze(["she
 // The tool input fields the plugin passes on, and the only ones parse reads. The content of a write and the old and
 // new strings of an edit are not passed on, and of a patch only its header lines are (the plugin's headers, below).
 const INPUT_KEYS = Object.freeze(["command", "path", "filePath", "patchText"]);
-const str = (value) => typeof value === "string" && value.length > 0 && value.length <= 4096 ? value : null;
 const record = (value) => value !== null && typeof value === "object" && !Array.isArray(value) ? value : {};
 // The payload is devtwin's own, because the plugin is devtwin's: { hook_event_name, session_id, cwd, tool_name,
 // tool_input, prompt }, with the event under devtwin's internal name. Total: any JSON value gives the normalized
@@ -164,16 +163,17 @@ async function setup(ctx) {
     } catch { /* Fail open. */ }
   });
   // session-start once for each session ID, then user-prompt. The reply text is kept in the conversation. It has no
-  // NOTE line: that line is for a tool result only.
+  // NOTE line: that line is for a tool result only. A prompt with no text, such as an attachment alone, has nothing
+  // to carry the session-start line, so the session counts as started only at its first prompt with text.
   await on("session", "prompt", async (event) => {
     try {
       const id = event.sessionID, parts = [];
-      if (!started.has(id)) {
+      const prompt = event.prompt && typeof event.prompt.text === "string" ? event.prompt.text : undefined;
+      if (prompt !== undefined && !started.has(id)) {
         if (started.size >= MAX_SESSIONS) started.delete(started.values().next().value);
         started.add(id);
         parts.push(textOf(await send("session-start", base("SessionStart", event))));
       }
-      const prompt = event.prompt && typeof event.prompt.text === "string" ? event.prompt.text : undefined;
       parts.push(textOf(await send("user-prompt", { ...base("UserPromptSubmit", event), prompt })));
       const text = parts.filter(Boolean).join("\n\n");
       if (text && prompt !== undefined) event.prompt.text = prompt + "\n\n" + text;
@@ -186,7 +186,9 @@ async function setup(ctx) {
       if (text.trim() && Array.isArray(event.system)) event.system.push({ type: "text", text });
     } catch { /* Fail open. */ }
   });
-  await on("session", "compaction", async (event) => { try { await send("pre-compact", base("PreCompact", event)); } catch { /* Fail open. */ } });
+  // A compaction can summarize the session-start line away. The next prompt of the session sends session-start again,
+  // as Claude Code and Codex get that context again after a compaction.
+  await on("session", "compaction", async (event) => { try { await send("pre-compact", base("PreCompact", event)); started.delete(event.sessionID); } catch { /* Fail open. */ } });
   await on("session", "experimental.idle", async (event) => { try { await send("stop", base("Stop", event)); } catch { /* Fail open. */ } });
 }
 // OpenCode 1.x calls server() on the same file. devtwin does nothing there: no hooks.
@@ -195,9 +197,9 @@ export default { id: "devtwin", setup, server };
 `;
 // The plugin source for a hook context (hookContext in src/agents/hooks-install.mjs), which names the Node path that
 // runs when PATH has no node: the stable one, so a Homebrew upgrade keeps the text (stableNodePath in
-// src/schedule/launchd.mjs). The default here is for a caller with no hook context. Each path is one JSON string, so no
-// character in a path can end the string or add code.
-function content({ kitRoot, pilotPath, nodePath = process.execPath } = {}) {
+// src/schedule/launchd.mjs). The Node path has no default, so only the hook context names it. Each path is one JSON
+// string, so no character in a path can end the string or add code.
+function content({ kitRoot, pilotPath, nodePath } = {}) {
   for (const path of [kitRoot, pilotPath, nodePath]) if (typeof path !== "string" || !path) throw new DevtwinError("INVALID_INPUT", "Plugin needs a kit path, a pilot path and a Node path", { field: "hookContext" });
   return ["// devtwin wrote this file. Do not edit it: `devtwin agents install --hooks` rewrites it.",
     "// It is the OpenCode 2.x plugin that sends each hook event to the devtwin hook command and applies the reply.",
@@ -225,8 +227,10 @@ export default Object.freeze({
   hooks: {
     // target "file": the hook target is the whole generated file, not entries in a settings file.
     file: "plugins/devtwin.js", display: "~/.config/opencode/plugins/devtwin.js", target: "file",
-    // [OpenCode plugin hook, devtwin hook event, tools]. The prompt hook sends session-start once for each session and
-    // user-prompt every time. The "context" hook runs no hook command: it adds the instruction file.
+    // [OpenCode plugin hook, devtwin hook event, tools], as a description only: no code reads this table. PLUGIN_BODY
+    // is the mapping that runs, and a test checks that each name here is a string in the plugin text. The prompt hook
+    // sends session-start once for each session, and again after a compaction, and user-prompt every time. The
+    // "context" hook runs no hook command: it adds the instruction file.
     events: Object.freeze([["prompt", "session-start", null], ["prompt", "user-prompt", null], ["execute.before", "pre-tool", BEFORE_TOOLS.join("|")], ["execute.after", "post-tool", AFTER_TOOLS.join("|")],
       ["compaction", "pre-compact", null], ["experimental.idle", "stop", null]]),
     // Lessons arrive after the tool, appended to its result under a marker line (NOTE in the plugin text). There is

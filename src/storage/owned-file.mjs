@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { join, dirname } from "node:path";
 import { assertWritable } from "../config/pilot.mjs";
 import { ensurePrivatePath, writeNewFile, fsyncDir, atomicReplace } from "./fsx.mjs";
-import { canonicalJson } from "./canonical.mjs";
+import { canonicalJson, sha256 } from "./canonical.mjs";
 import { RUN_ID } from "./runs.mjs";
 import { DevtwinError } from "../errors.mjs";
 // Edits to files the developer owns: only devtwin's marker block or devtwin's own JSON entries change.
@@ -104,9 +104,10 @@ export async function editOwnedFile(roots, { path, writeClass, runId, edit, prio
   const prior = readOwned(path, limit), text = prior ? decode(prior.bytes) : null;
   const next = edit(text), remove = next === null && writeClass === "hookTargets" && typeof priorHash === "string" && SHA256.test(priorHash);
   if (!remove && (typeof next !== "string" || Buffer.byteLength(next) > limit)) throw new DevtwinError("INVALID_INPUT", "Invalid owned file content");
-  const sum = prior ? "sha256:" + createHash("sha256").update(prior.bytes).digest("hex") : null;
-  if (remove && sum !== priorHash) throw new DevtwinError("INTEGRITY", "Owned file changed");
+  // A remove has next null and never returns here, so the remove check below always runs.
   if (prior && next === text) return { changed: false, path, backup: null };
+  const sum = prior ? sha256(prior.bytes) : null;
+  if (remove && sum !== priorHash) throw new DevtwinError("INTEGRITY", "Owned file changed");
   ensurePrivatePath(roots.stateRoot, ["runs", runId, "backups"]);
   assertWritable(roots, [backup, record]);
   if (prior) await writeNewFile(backup, prior.bytes);

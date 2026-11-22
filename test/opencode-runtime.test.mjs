@@ -278,7 +278,7 @@ test("the generated plugin and the hook command agree end to end", async (t) => 
   await writeKitReceipt(s.roots, { pilotPath: s.path, now: new Date() });
   const config = join(s.sandbox, "opencode-config"), file = join(config, "plugins/devtwin.mjs");
   await mkdir(join(config, "plugins"), { recursive: true });
-  const text = adapter("opencode").hooks.content({ kitRoot: KIT, pilotPath: s.path });
+  const text = adapter("opencode").hooks.content({ kitRoot: KIT, pilotPath: s.path, nodePath: process.execPath });
   assert.ok(text.includes("KIT = " + JSON.stringify(KIT)) && text.includes("PILOT = " + JSON.stringify(s.path)));
   await writeFile(file, text);
   const plugin = (await import(pathToFileURL(file).href)).default, { ctx, hooks } = fakeCtx(s.repo);
@@ -314,14 +314,21 @@ test("the generated plugin and the hook command agree end to end", async (t) => 
     assert.equal(third.prompt.text, "fix the migrations");
     assert.deepEqual(await state(s), { schemaVersion: 1, agent: "opencode", delivered: [s.ids[0]], lines: 1, overflowed: false });
     // The idle hook sends stop, which writes the stop stub; the compaction hook removes the session file, so the
-    // prompt lesson arrives again.
+    // prompt lesson arrives again. The next prompt of the session gets the session-start line again too, before the
+    // lesson, as Claude Code and Codex get it again after a compaction.
     await hooks["experimental.idle"]({ sessionID: SESSION });
     assert.equal(JSON.parse(await readFile(stubPath(s.stateRoot, SCOPE, PROJECT, s.repo), "utf8")).session, sessionKey("opencode", SESSION));
     await hooks.compaction({ sessionID: SESSION });
     assert.equal(existsSync(sessionFile(s)), false);
     const fourth = promptEvent("fix the migrations");
     await hooks.prompt(fourth);
-    assert.equal(fourth.prompt.text, "fix the migrations\n\n" + HEAD + "\n" + s.line(s.ids[0]));
+    // That session-start text now holds the summary with the stop stub that the idle hook wrote, at the real time.
+    const [start, summary] = fourth.prompt.text.split("\n\n" + HEAD + "\n");
+    assert.equal(summary, s.line(s.ids[0]));
+    assert.ok(start.startsWith("fix the migrations\n\n" + liveLine(SESSION) + "\n") && /\nLast session stopped .+ on branch `main` with 0 changed files\. No handoff was written\.\n/.test(start), start);
+    const fifth = promptEvent("fix the migrations");
+    await hooks.prompt(fifth);
+    assert.equal(fifth.prompt.text, "fix the migrations", "one session-start line after the compaction, and the lesson once");
     // The marker line belongs to a tool result only: the prompt text with the session-start line and the one with the
     // lesson do not have it.
     for (const event of [first, fourth]) assert.ok(!event.prompt.text.includes("devtwin hook note"), event.prompt.text);
