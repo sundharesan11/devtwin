@@ -1,20 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { mkdir, writeFile, realpath } from "node:fs/promises";
-import { realpathSync } from "node:fs";
+import { mkdir, writeFile, realpath, rm } from "node:fs/promises";
+import { realpathSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { onboardFixture, draftFor, now } from "./helpers.mjs";
 import { main } from "../src/cli.mjs";
 import { applyOnboard } from "../src/onboarding/onboard.mjs";
 import { addRecord } from "../src/records/store.mjs";
 import { rebuildIndex } from "../src/lessons/index.mjs";
-import { writeKitReceipt } from "../src/hooks/receipt.mjs";
+import { writeKitReceipt, receiptPath } from "../src/hooks/receipt.mjs";
 import { ownerAction } from "../src/hooks/owner-block.mjs";
 import { adapter, AGENT_IDS } from "../src/agents/adapters/index.mjs";
 import { renderBlock, planInstructions, BLOCK_CHARS } from "../src/agents/instructions.mjs";
 import { formLine, commandFor, FORM_POINTER, COMPACT_COMMAND, FORM_START } from "../src/agents/command-form.mjs";
-import { renderGuide } from "../src/stack/guide.mjs";
+import { renderGuide, PLACEHOLDER_NOTE } from "../src/stack/guide.mjs";
 import { radarNote } from "../src/stack/digest.mjs";
+import { fitLine, START_LINE_BYTES, START_BYTES } from "../src/hooks/commands.mjs";
+import { summaryPath } from "../src/context/summary.mjs";
+import { digest } from "../src/storage/canonical.mjs";
 
 // K1: every devtwin command that devtwin renders for an agent runs as written. src/cli.mjs refuses a route that is not
 // root-free without --pilot, so a command is either the full form `node '<kit>/bin/devtwin.mjs' <command> --pilot
@@ -95,7 +100,10 @@ test("command form: for each adapter the block holds the definition and every ho
     assert.ok(plan.block.includes(formLine(context)), agent);
     const start = await hook(s, agent, "session-start", PAYLOADS[agent].start(s.repo, "s-form-" + agent));
     assert.match(start, new RegExp("lessons? for example\\.atlas\\. Scope: example\\. "), agent);
-    assert.ok(start.includes("run `devtwin lesson notices --scope example` " + FORM_POINTER + "."), agent + ": " + start);
+    // The start line keeps its 400 bytes: with a long checkout path the notices part takes its short form (fitLine).
+    const line = start.split("\n").find((l) => l.startsWith("devtwin hook live: "));
+    assert.ok(Buffer.byteLength(line) <= START_LINE_BYTES, agent + ": " + line);
+    assert.ok(line.includes("run `devtwin lesson notices --scope example` " + FORM_POINTER + ".") || line.includes(" 1 lesson replaced."), agent + ": " + line);
     assert.ok(start.includes("run `devtwin hook verify` " + FORM_POINTER + "."), agent + ": " + start);
     const lessons = await hook(s, agent, "user-prompt", PAYLOADS[agent].prompt(s.repo, "s-form-" + agent, "fix the migrations"));
     assert.ok(lessons.includes("Load one with `devtwin lesson show --scope example --id <id>` " + FORM_POINTER + "."), agent + ": " + lessons);
@@ -112,16 +120,114 @@ test("command form: the not-verified start line gives the full verify command", 
   assert.deepEqual([...line.matchAll(COMPACT_COMMAND)], []);
 });
 
-test("command form: a radar guide and a digest note give the full executable form", () => {
+test("start line: fitLine shortens, then drops, the optional parts from the highest rank down and keeps rank 0", () => {
+  const parts = [{ rank: 0, text: "A".repeat(10) }, { rank: 5, text: " five", short: "" }, { rank: 4, text: " four-long", short: " 4" }, { rank: 1, text: " one" }, { rank: 0, text: " Z" }, { rank: 2, text: " two-long", short: " 2" }];
+  assert.equal(fitLine(parts, 1000), "AAAAAAAAAA five four-long one Z two-long");
+  // Short forms first, highest rank first: five goes, then four, then two, until the line fits.
+  assert.equal(fitLine(parts, 35), "AAAAAAAAAA four-long one Z two-long");
+  assert.equal(fitLine(parts, 28), "AAAAAAAAAA 4 one Z two-long");
+  assert.equal(fitLine(parts, 21), "AAAAAAAAAA 4 one Z 2");
+  // Then whole parts go in the same order; the kit-like rank 1 goes last and rank 0 always stays.
+  assert.equal(fitLine(parts, 18), "AAAAAAAAAA one Z 2");
+  assert.equal(fitLine(parts, 16), "AAAAAAAAAA one Z");
+  assert.equal(fitLine(parts, 3), "AAAAAAAAAA Z");
+});
+
+// The worst case of the session-start output: a 120-character kit path, a 32-character scope and a 96-character project
+// (the ID limits), open replacement notices, a paths confirmation over 90 days old, a receipt that expires in two
+// days, a knowledge server binding with the longest names and a cached summary of 1,200 characters with 3-byte
+// characters.
+async function worstCase(t) {
+  const scope = "s" + "a".repeat(31), project = scope + "." + "p".repeat(96 - scope.length - 1);
+  const s = await onboardFixture(t, { scope, project });
+  await applyOnboard(s.roots, s.pilot, s.input, { fingerprint: s.plan.fingerprint, now });
+  await rebuildIndex(s.roots, scope);
+  const base = await realpath(s.sandbox), kitDir = join(base, "k".repeat(120 - base.length - 1));
+  await mkdir(join(kitDir, ".git/refs/heads"), { recursive: true });
+  await writeFile(join(kitDir, ".git/HEAD"), "ref: refs/heads/main\n");
+  await writeFile(join(kitDir, ".git/refs/heads/main"), "a".repeat(40) + "\n");
+  const kitRoot = await realpath(kitDir);
+  const hub = join(s.stateRoot, "hubs", "example-hub");
+  await mkdir(hub, { recursive: true, mode: 0o700 });
+  await writeFile(join(hub, "notices.json"), JSON.stringify({ schemaVersion: 1, scope, notices: Array.from({ length: 12 }, (_, n) => ({ id: "ntc_" + n })) }), { mode: 0o600 });
+  await mkdir(join(s.configRoot, "servers"), { recursive: true, mode: 0o700 });
+  await writeFile(join(s.configRoot, "servers", scope + ".json"), JSON.stringify({ schemaVersion: 1, scope, server: "k" + "n".repeat(63), client: "c" + "l".repeat(63) }), { mode: 0o600 });
+  const body = { schemaVersion: 1, scope, project, lines: Array.from({ length: 6 }, (_, n) => "unreviewed, from you: constraint " + n + ": " + "€".repeat(160)) };
+  const cache = summaryPath(s.roots, scope, project);
+  await mkdir(join(cache, ".."), { recursive: true, mode: 0o700 });
+  await writeFile(cache, JSON.stringify({ ...body, fingerprint: digest(body) }), { mode: 0o600 });
+  const day = (n) => new Date(now().getTime() + n * 86400000);
+  const run = async (args, at, extra = {}) => {
+    const chunks = [];
+    await main([...args, "--pilot", s.path], { stdout: { write: (v) => { chunks.push(v); return true; } }, now: () => at, env: {}, kitRoot, ownerDialog: () => "approved", ...extra });
+    return chunks.join("");
+  };
+  const start = async (at) => JSON.parse(await run(["hook", "--event", "session-start", "--agent", "claude"], at, { stdin: JSON.stringify({ session_id: "s-worst", cwd: s.repo, hook_event_name: "SessionStart", source: "startup" }) })).hookSpecificOutput.additionalContext;
+  // Confirm the paths on day 0 and renew the receipt up to day 87: on day 115 the confirmation is over 90 days old and
+  // the receipt from day 87 expires in two days.
+  await writeKitReceipt(s.roots, { pilotPath: s.path, kitRoot, now: day(0) });
+  const preview = JSON.parse(await run(["paths", "confirm"], day(0)));
+  await run(["paths", "confirm", "--apply", "--plan-fingerprint", preview.result.fingerprint], day(0));
+  for (const n of [0, 29, 58, 87]) await start(day(n));
+  return { s, scope, project, kitRoot, context: await start(day(115)), run };
+}
+
+test("start line: the worst case keeps the start line within 400 bytes and the whole output within 1,600", async (t) => {
+  const { scope, project, kitRoot, context } = await worstCase(t);
+  assert.equal(kitRoot.length, 120);
+  const first = context.split("\n")[0], search = first.indexOf(" Before non-trivial debugging, call ");
+  assert.ok(search > 0, first);
+  const line = first.slice(0, search);
+  assert.ok(Buffer.byteLength(line) <= START_LINE_BYTES, Buffer.byteLength(line) + ": " + line);
+  assert.ok(Buffer.byteLength(context) <= START_BYTES, String(Buffer.byteLength(context)));
+  // Rank 0 always stays: the project and its lesson count, the scope and the session ID.
+  assert.match(line, new RegExp("^devtwin hook live: \\d+ lessons? for " + project.replaceAll(".", "\\.") + "\\. Scope: " + scope + "\\. "));
+  assert.match(line, / Session ID for lesson propose: ses_[a-f0-9]{24}\./);
+  // At 120 characters the kit path still fits, next to the short paths note.
+  assert.ok(line.includes(" Kit: `" + kitRoot + "`."), line);
+  assert.ok(line.includes(" Paths confirmed over 90 days ago."), line);
+  // The summary is sized to the bytes that remain, so it keeps some of its lines.
+  assert.ok(context.includes("\ndevtwin summary for " + project + "."), context);
+  assert.ok(context.includes("constraint 0: "), context);
+  assert.deepEqual(pointed(context), []);
+});
+
+test("start line: the not-verified line with a 120-character kit path keeps its full verify command within 400 bytes", async (t) => {
+  const { s, kitRoot, run } = await worstCase(t);
+  await rm(receiptPath(s.stateRoot), { force: true });
+  const line = JSON.parse(await run(["hook", "--event", "session-start", "--agent", "claude"], now(), { stdin: JSON.stringify({ session_id: "s-unverified", cwd: s.repo, hook_event_name: "SessionStart", source: "startup" }) })).hookSpecificOutput.additionalContext;
+  assert.ok(Buffer.byteLength(line) <= START_LINE_BYTES, Buffer.byteLength(line) + ": " + line);
+  assert.ok(line.startsWith("devtwin hook: kit not verified ("), line);
+  assert.ok(line.includes("`" + commandFor("hook verify", { kitRoot, pilotPath: await realpath(s.path) }) + "`. Lessons are off."), line);
+});
+
+test("command form: a radar guide and a digest note give the full executable form", (t) => {
   const context = { kitRoot: long("/kits", 120), pilotPath: long("/pilots", 120) };
   const guide = renderGuide({ id: "0123456789ab", label: "Example tool", kind: "agent-tools", link: "https://example.com/tool", sourceUrl: "https://example.com/feed" }, { scope: SCOPE, digestDate: "2026-10-07", context });
-  assert.ok(guide.includes(commandFor("lesson propose --scope example --session <session> --title \"<what you learned>\" --body-file <notes.md>", context)), guide);
+  const propose = commandFor("lesson propose --scope 'example' --session '<session ID>' --title '<what you learned>' --summary '<one do or do not line>' --body-file '<notes.md>' --topic '<tool name>' --apply", context);
+  assert.ok(guide.includes("```sh\n" + propose + "\n```\n\n" + PLACEHOLDER_NOTE), guide);
+  // The command writes: it has --apply and every flag that lesson propose requires for a write.
+  for (const flag of ["--scope", "--session", "--title", "--summary", "--body-file", "--topic", "--apply", "--pilot"]) assert.ok(propose.includes(" " + flag + " "), flag);
   assert.ok(fullForms(guide, context));
   assert.deepEqual([...guide.matchAll(COMPACT_COMMAND)], []);
-  for (const [scope, words] of [[SCOPE, "radar guide --scope example --item <item ID>"], [null, "radar guide --item <item ID>"]]) {
+  assert.ok(renderGuide({ id: "0123456789ab", label: "Example tool", kind: "agent-tools" }, { scope: null, digestDate: "2026-10-07", context }).includes(" lesson propose --scope '<scope>' "));
+  const commands = [propose];
+  for (const [scope, words] of [[SCOPE, "radar guide --scope example --item '<item ID>'"], [null, "radar guide --item '<item ID>'"]]) {
     const note = radarNote(scope, context);
-    assert.ok(note.includes("`" + commandFor(words, context) + "`"), note);
+    assert.ok(note.includes("`" + commandFor(words, context) + "`. Replace `<item ID>` with the item's ID."), note);
     assert.deepEqual([...note.matchAll(COMPACT_COMMAND)], []);
+    commands.push(commandFor(words, context));
+  }
+  // Every angle-bracket placeholder sits inside single quotes, so a copied command that keeps one redirects nothing:
+  // the shell runs each command with printf in place of node, in an empty folder, and the folder stays empty.
+  const dir = mkdtempSync(join(tmpdir(), "devtwin-form-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  for (const command of commands) {
+    assert.doesNotMatch(command.replace(/'[^']*'/g, ""), /[<>]/, command);
+    const run = spawnSync("/bin/sh", ["-c", command.replace(/^node /, "printf '%s\\n' ")], { cwd: dir, encoding: "utf8" });
+    assert.equal(run.status, 0, run.stderr);
+    assert.ok(/^<[a-z ID.]+>$/m.test(run.stdout), run.stdout);
+    assert.deepEqual(readdirSync(dir), [], command);
   }
 });
 

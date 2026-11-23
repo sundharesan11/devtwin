@@ -86,8 +86,9 @@ export const RETIREMENTS_TITLE = "Model retirements";
 export const RETIREMENTS_NOTE = "Models that the vendor deprecation pages say retire within " + RETIREMENT_WINDOW_DAYS + " days. Only the model ID and the date are read from each page.";
 // Days left for a retirement finding, from the check's fetch time.
 export const daysLeft = (finding, check) => daysUntil(finding.retireDate, new Date(check.fetchedAt));
-// K1: the guide command is the full executable form (src/agents/command-form.mjs), so it runs as written.
-export const radarNote = (scope, context) => "Radar items are ranked by your stack, the projects in this scope and your interests. For a short guide to try one, run `" + commandFor("radar guide" + (scope ? " --scope " + scope : "") + " --item <item ID>", context) + "`.";
+// K1: the guide command is the full executable form (src/agents/command-form.mjs), so it runs as written. The item
+// placeholder is single-quoted, so a copied command that keeps it cannot redirect the shell.
+export const radarNote = (scope, context) => "Radar items are ranked by your stack, the projects in this scope and your interests. For a short guide to try one, run `" + commandFor("radar guide" + (scope ? " --scope " + scope : "") + " --item '<item ID>'", context) + "`. Replace `<item ID>` with the item's ID.";
 // The ID a radar guide names an item by: 12 hex characters of the entry hash.
 export const itemId = (entry) => entry.hash.slice(7, 19);
 export const radarKinds = (listed) => Object.keys(RADAR_TITLES).map((kind) => [kind, listed.filter((e) => e.radar.kind === kind)]).filter(([, list]) => list.length);

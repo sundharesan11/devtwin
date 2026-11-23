@@ -26,7 +26,9 @@ const KIT_PART = " Kit: `" + realpathSync(join(import.meta.dirname, "..")) + "`.
 const KIT_RE = "Kit: `[^`]+`\\. ";
 const KIT = realpathSync(join(import.meta.dirname, ".."));
 // U48: the not-verified line names the kit and the exact verify command to run from it.
-const notVerified = (problem, kit, pilot) => "devtwin hook: kit not verified (" + problem + "); run `node '" + kit + "/bin/devtwin.mjs' hook verify --pilot '" + pilot + "'`. Lessons are off. Kit: `" + kit + "`.";
+// The Kit part repeats the kit path of the verify command, so it goes when the line passes 400 bytes (fitLine).
+const fitKit = (line, kit) => Buffer.byteLength(line + " Kit: `" + kit + "`.") <= 400 ? line + " Kit: `" + kit + "`." : line;
+const notVerified = (problem, kit, pilot) => fitKit("devtwin hook: kit not verified (" + problem + "); run `node '" + kit + "/bin/devtwin.mjs' hook verify --pilot '" + pilot + "'`. Lessons are off.", kit);
 const lesson = (requestId, extra = {}, { scope = SCOPE, project = PROJECT } = {}) => {
   const input = draftFor(scope, project, { requestId, kind: "lesson", body: "Do run migrations before seeding the test database.\n" });
   input.draft = { ...input.draft, title: "Migrations before seeds", class: "lesson", reach: "project", match: { paths: ["db/migrations/**"], packages: ["pg"], topics: ["migrations"] }, ...extra };

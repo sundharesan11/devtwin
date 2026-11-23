@@ -125,7 +125,7 @@ The devtwin hook runs at fixed points in a Claude Code, Codex, Gemini CLI, Antig
 
 | Event | What the hook does |
 | --- | --- |
-| `session-start` | One line: the hook is live, how many lessons the project has, and the session ID for `lesson propose`. It also counts open replacement notices. After [`paths confirm`](#confirm-the-kit-and-config-paths), the line ends with "Kit and config confirmed." In a bound project, the [session summary](#the-session-summary) follows the line. |
+| `session-start` | One line: the hook is live, how many lessons the project has, and the session ID for `lesson propose`. It also counts open replacement notices. After [`paths confirm`](#confirm-the-kit-and-config-paths), the line ends with "Kit and config confirmed." In a bound project, the [session summary](#the-session-summary) follows the line. The line is at most 400 bytes. The whole session-start output is at most 1,600 bytes (see [Session-start size](#session-start-size)). |
 | `user-prompt` | Matches package names and topics in the prompt, so a lesson can arrive before the first edit. |
 | `pre-tool`, `post-tool` | Matches the paths in the tool call. On an edit call in a hub-joined project, it can also queue a ["working on" note](/docs/guides/organization-hub/#working-on-notes). On Antigravity CLI, these lessons arrive on the next model call. On OpenCode, they arrive with the tool result, never before the tool, after a marker line that the plugin adds. |
 | `pre-compact`, `post-compact` | Resets the per-session lesson count, so lessons can arrive again after compaction. `pre-compact` also records [where the worktree stands](#where-the-last-session-stopped). Antigravity CLI has no compaction event. |
@@ -156,6 +156,20 @@ unreviewed, from agent: last handoff 2026-10-27 09:00 UTC, next step: run the mi
 A line that was not confirmed starts with its source and "unreviewed", and so does every hub lesson, with its author. Each line passes the text checks for automatic writes again before it is shown, and a line that names another scope is left out. When the summary is too long, the last lines are dropped whole.
 
 The hook reads a stored copy under `stateRoot/summaries/`. Record writes, lesson index rebuilds and `undo` keep that copy current. A missing or damaged copy gives the one-line output. `budget report` counts the summary bytes with the line.
+
+### Session-start size
+
+The session-start line is at most 400 bytes. The whole session-start output is at most 1,600 bytes. That output is the line, the knowledge-search sentence of a scope with a knowledge server, and the summary. The summary gets the bytes that are left, and its last lines are dropped first.
+
+The line always keeps the project, the lesson count, the scope and the session ID. When the line is too long, the hook first uses shorter forms of the other parts, then leaves parts out. It uses this order:
+
+1. "Index lines arrive when work matches."
+2. The replacement notices. The short form is "12 lessons replaced."
+3. The receipt warning. The short form is "Kit receipt expires in 2 days."
+4. The paths note. The short form is "Paths confirmed over 90 days ago." or "Kit or config changed." "Kit and config confirmed." has no short form.
+5. The kit path.
+
+With a kit path of 120 characters, the kit path still fits at the longest scope and project IDs. A part that is left out is still available elsewhere. Your instruction block names the command form, and `lesson notices`, `hook verify` and the brief give the full view. When the line has no kit path, the skills use `DEVTWIN_KIT`. The `kit not verified` line keeps its full `hook verify` command, so its kit path part goes first.
 
 ### Where the last session stopped
 

@@ -70,7 +70,9 @@ async function oc(s, event, body, options) {
   return r.out;
 }
 const jsonLines = async (path) => { try { return (await readFile(path, "utf8")).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)); } catch (error) { if (error.code === "ENOENT") return []; throw error; } };
-const notVerified = (s, problem) => "devtwin hook: kit not verified (" + problem + "); run `node '" + KIT + "/bin/devtwin.mjs' hook verify --pilot '" + realpathSync(s.path) + "'`. Lessons are off. Kit: `" + KIT + "`.";
+// The Kit part repeats the kit path of the verify command, so it goes when the line passes 400 bytes (fitLine).
+const fitKit = (line) => Buffer.byteLength(line + " Kit: `" + KIT + "`.") <= 400 ? line + " Kit: `" + KIT + "`." : line;
+const notVerified = (s, problem) => fitKit("devtwin hook: kit not verified (" + problem + "); run `node '" + KIT + "/bin/devtwin.mjs' hook verify --pilot '" + realpathSync(s.path) + "'`. Lessons are off.");
 const liveLine = (session, count = 1) => "devtwin hook live: " + count + " lesson" + (count === 1 ? "" : "s") + " for " + PROJECT + ". Scope: " + SCOPE + ". Index lines arrive when work matches. Kit: `" + KIT + "`. Session ID for lesson propose: " + sessionTag(sessionKey("opencode", session)) + ".";
 const sessionFile = (s, id = SESSION) => join(sessionsDir(s.stateRoot), sessionKey("opencode", id) + ".json");
 const state = async (s, id) => { const { updatedAt, ...rest } = JSON.parse(await readFile(sessionFile(s, id), "utf8")); return rest; };

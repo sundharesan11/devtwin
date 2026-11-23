@@ -88,12 +88,13 @@ export function lineProblem(candidate, { scope, terms }) {
   return null;
 }
 // The block an agent sees: one heading line, then the lines inside a fence longer than any backtick run they hold,
-// with the renderInbound character rules (src/records/isolation.mjs). Over SUMMARY_CHARS, the last lines go.
-export function renderSummary(project, lines) {
+// with the renderInbound character rules (src/records/isolation.mjs). Over SUMMARY_CHARS, the last lines go. K1: the
+// session-start hook also passes maxBytes, the bytes left under its START_BYTES cap; over that, the last lines go too.
+export function renderSummary(project, lines, { maxBytes = Infinity } = {}) {
   const safe = lines.map((line) => capChars(inboundLine(line).trim())).filter(Boolean);
   for (let keep = safe.length; keep > 0; keep--) {
     const text = block(project, safe.slice(0, keep));
-    if (chars(text) <= SUMMARY_CHARS) return { text, lines: safe.slice(0, keep), dropped: safe.length - keep };
+    if (chars(text) <= SUMMARY_CHARS && Buffer.byteLength(text) <= maxBytes) return { text, lines: safe.slice(0, keep), dropped: safe.length - keep };
   }
   return { text: "", lines: [], dropped: safe.length };
 }

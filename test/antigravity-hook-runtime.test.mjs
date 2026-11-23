@@ -55,7 +55,9 @@ function bin(s, agent, event, body, { pilot = s.path } = {}) {
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
 const jsonLines = async (path) => { try { return (await readFile(path, "utf8")).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)); } catch (error) { if (error.code === "ENOENT") return []; throw error; } };
-const notVerified = (s, problem) => "devtwin hook: kit not verified (" + problem + "); run `node '" + KIT + "/bin/devtwin.mjs' hook verify --pilot '" + realpathSync(s.path) + "'`. Lessons are off. Kit: `" + KIT + "`.";
+// The Kit part repeats the kit path of the verify command, so it goes when the line passes 400 bytes (fitLine).
+const fitKit = (line) => Buffer.byteLength(line + " Kit: `" + KIT + "`.") <= 400 ? line + " Kit: `" + KIT + "`." : line;
+const notVerified = (s, problem) => fitKit("devtwin hook: kit not verified (" + problem + "); run `node '" + KIT + "/bin/devtwin.mjs' hook verify --pilot '" + realpathSync(s.path) + "'`. Lessons are off.");
 const liveLine = (agent, session, count = 1) => "devtwin hook live: " + count + " lesson" + (count === 1 ? "" : "s") + " for " + PROJECT + ". Scope: " + SCOPE + ". Index lines arrive when work matches. Kit: `" + KIT + "`. Session ID for lesson propose: " + sessionTag(sessionKey(agent, session)) + ".";
 
 // What Claude Code, Codex and Gemini CLI send and read. The stdout strings are written out here, not built by the
