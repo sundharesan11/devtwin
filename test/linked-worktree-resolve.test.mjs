@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { join } from "node:path";
-import { mkdir, writeFile, realpath } from "node:fs/promises";
+import { join, relative } from "node:path";
+import { mkdir, writeFile, readFile, realpath } from "node:fs/promises";
 import { onboardFixture, fixtureGit, runCli, now } from "./helpers.mjs";
 import { main } from "../src/cli.mjs";
 import { applyOnboard, planOnboard } from "../src/onboarding/onboard.mjs";
@@ -11,6 +11,7 @@ import { buildBrief } from "../src/context/brief.mjs";
 import { buildPortableHandoff } from "../src/handoff/portable.mjs";
 import { rebuildIndex, readCommonDir } from "../src/lessons/index.mjs";
 import { writeKitReceipt } from "../src/hooks/receipt.mjs";
+import { writeStub } from "../src/hooks/stub.mjs";
 
 // K1 (KTD6): context resolve, lesson match and the hooks resolve a linked worktree of a bound repository by one rule
 // (matchWorktree in src/lessons/index.mjs). The repository at repos/atlas is bound as acme.atlas.
@@ -110,6 +111,69 @@ test("linked worktree: a forged .git file that names the bound repository's Git 
     const result = await resolvers(s, dir);
     assert.ok(result.context !== "acme.atlas" && result.lesson !== "acme.atlas" && result.hook === "unbound", JSON.stringify(result));
   }
+});
+
+// K1 round 4: readCommonDir checks the place of the gitdir (directly in <common>/worktrees), its commondir file (the
+// same common directory) and its gitdir back-pointer (this folder's .git), each by real path.
+test("linked worktree: a path with a space and a relative gitdir resolve; a gitdir in worktrees whose back-pointer names another folder is refused", async (t) => {
+  const s = await bound(t);
+  await withHooks(s);
+  const commonDir = await realpath(join(s.repo, ".git"));
+  const ALL = { context: "acme.atlas", lesson: "acme.atlas", hook: "acme.atlas" };
+  // A real git worktree add worktree, and one whose path has a space.
+  assert.deepEqual(await resolvers(s, s.linked), ALL);
+  const spaced = join(s.sandbox, "work", "atlas feature two");
+  await fixtureGit(s.repo, ["worktree", "add", "-q", "-b", "spaced", spaced]);
+  assert.equal(readCommonDir(await realpath(spaced)), commonDir);
+  assert.deepEqual(await resolvers(s, await realpath(spaced)), ALL);
+  // Relative paths, as git worktree add --relative-paths writes them: the .git file names the gitdir relative to the
+  // worktree, and the back-pointer names the .git file relative to the gitdir. Git still reads the worktree.
+  const rel = join(s.sandbox, "work", "atlas-rel");
+  await fixtureGit(s.repo, ["worktree", "add", "-q", "-b", "rel", rel]);
+  const relRoot = await realpath(rel), admin = (await readFile(join(relRoot, ".git"), "utf8")).replace(/^gitdir: /, "").trim();
+  await writeFile(join(relRoot, ".git"), "gitdir: " + relative(relRoot, admin) + "\n");
+  await writeFile(join(admin, "gitdir"), relative(admin, join(relRoot, ".git")) + "\n");
+  assert.equal((await fixtureGit(relRoot, ["rev-parse", "--abbrev-ref", "HEAD"])).trim(), "rel");
+  assert.equal(readCommonDir(relRoot), commonDir);
+  assert.deepEqual(await resolvers(s, relRoot), ALL);
+  // A gitdir placed inside <common>/worktrees with a correct commondir file, whose back-pointer names another folder
+  // (the real linked worktree). The crafted folder that points at it is refused by every resolver.
+  const fakeAdmin = join(commonDir, "worktrees", "crafted-admin"), crafted = join(s.sandbox, "crafted-in-worktrees");
+  await mkdir(fakeAdmin);
+  await mkdir(crafted);
+  await writeFile(join(fakeAdmin, "commondir"), "../..\n");
+  await writeFile(join(fakeAdmin, "HEAD"), "ref: refs/heads/main\n");
+  await writeFile(join(fakeAdmin, "gitdir"), join(s.linked, ".git") + "\n");
+  await writeFile(join(crafted, ".git"), "gitdir: " + fakeAdmin + "\n");
+  const craftedRoot = await realpath(crafted);
+  assert.equal(readCommonDir(craftedRoot), null);
+  const refused = await resolvers(s, craftedRoot);
+  assert.ok(refused.context !== "acme.atlas" && refused.lesson !== "acme.atlas" && refused.hook === "unbound", JSON.stringify(refused));
+  // A commondir file that names another directory than the one the gitdir sits in is refused too.
+  await writeFile(join(fakeAdmin, "gitdir"), join(craftedRoot, ".git") + "\n");
+  await writeFile(join(fakeAdmin, "commondir"), relative(fakeAdmin, s.sandbox) + "\n");
+  assert.equal(readCommonDir(craftedRoot), null);
+  // The control: with all three checks met, the folder is a linked worktree. Only a write inside the bound
+  // repository's own .git can make one, and such a write already controls that repository.
+  await writeFile(join(fakeAdmin, "commondir"), "../..\n");
+  assert.equal(readCommonDir(craftedRoot), commonDir);
+});
+
+// K1 round 4 (review m2): a .git file whose gitdir has no commondir file (a --separate-git-dir checkout or a
+// submodule) is no linked worktree, but the stop stub still reads its own gitdir's config, as before K1.
+test("linked worktree: a separate-git-dir checkout is no linked worktree and still gets its stop stub", async (t) => {
+  const s = await bound(t);
+  const work = join(s.sandbox, "separate"), store = join(s.sandbox, "separate-store.git");
+  await mkdir(work);
+  await fixtureGit(work, ["init", "-q", "-b", "main", "--separate-git-dir", store]);
+  await fixtureGit(work, ["commit", "-q", "--allow-empty", "-m", "first"]);
+  const root = await realpath(work);
+  assert.equal(readCommonDir(root), null);
+  const stub = await writeStub(s.stateRoot, { scope: "acme", project: "acme.atlas", root }, { key: "s-separate", now: now() });
+  assert.ok(stub && stub.branch === "main", JSON.stringify(stub));
+  // A risky config in that gitdir still blocks the stub.
+  await writeFile(join(store, "config"), (await readFile(join(store, "config"), "utf8")) + "[filter \"x\"]\n\tclean = cat\n");
+  assert.equal(await writeStub(s.stateRoot, { scope: "acme", project: "acme.atlas", root }, { key: "s-separate", now: now() }), null);
 });
 
 test("linked worktree: the hooks, lesson match and context resolve agree on the same fixtures", async (t) => {

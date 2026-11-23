@@ -40,8 +40,10 @@ function gitDirOf(root) {
 // means no stub. core.fsmonitor, core.hooksPath and core.untrackedCache are overridden on the command line by git();
 // status runs no pager into a pipe and, with GIT_OPTIONAL_LOCKS=0, writes no index, so no index hook fires.
 const riskyConfig = (text) => /filter|include/i.test(text) || text.split("\n").some((line) => line.trimStart().indexOf("[", 1) > 0);
+// K1 round 4 (review m2): a .git file whose gitdir has no commondir (a submodule, or a --separate-git-dir checkout)
+// is no linked worktree, so readCommonDir gives null; its own gitdir holds its config, as it did before K1.
 function hasFilters(root) {
-  const common = readCommonDir(root), own = gitDirOf(root);
+  const own = gitDirOf(root), common = readCommonDir(root) ?? (own && !info(join(own, "commondir")) ? own : null);
   if (!common || !own) return true;
   for (const path of [join(common, "config"), join(own, "config.worktree")]) {
     const node = info(path);

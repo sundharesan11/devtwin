@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
 import { mkdir, writeFile, realpath, rm } from "node:fs/promises";
-import { realpathSync, mkdtempSync, rmSync, readdirSync } from "node:fs";
+import { realpathSync, mkdtempSync, rmSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { onboardFixture, draftFor, now } from "./helpers.mjs";
@@ -14,7 +14,7 @@ import { writeKitReceipt, receiptPath } from "../src/hooks/receipt.mjs";
 import { ownerAction } from "../src/hooks/owner-block.mjs";
 import { adapter, AGENT_IDS } from "../src/agents/adapters/index.mjs";
 import { renderBlock, planInstructions, BLOCK_CHARS, PREFERENCE_ROOM } from "../src/agents/instructions.mjs";
-import { formLine, commandFor, FORM_POINTER, COMPACT_COMMAND, FORM_START } from "../src/agents/command-form.mjs";
+import { formLine, commandFor, commandContext, FORM_POINTER, COMPACT_COMMAND, FORM_START } from "../src/agents/command-form.mjs";
 import { renderGuide, PLACEHOLDER_NOTE } from "../src/stack/guide.mjs";
 import { radarNote } from "../src/stack/digest.mjs";
 import { fitLine, START_LINE_BYTES, START_BYTES } from "../src/hooks/commands.mjs";
@@ -34,10 +34,26 @@ const fullForms = (text, context) => text.split(/`|\n/).filter((part) => part.st
 function pointed(text) {
   const bad = [];
   for (const match of text.matchAll(COMPACT_COMMAND)) if (!text.startsWith(" " + FORM_POINTER, match.index + match[0].length)) bad.push(match[0]);
-  // "devtwin hook live:" and "devtwin lessons —" are the hook's own labels, not commands.
-  if (/(^|[\s(])devtwin (lesson [a-z]|handoff |instructions |paths |radar |record |context |hook verify)/m.test(text.replace(COMPACT_COMMAND, ""))) bad.push("bare devtwin command outside backticks");
+  // K1 round 4 (review m3): any "devtwin <word>" outside backticks is a bare command, except the hook's own labels.
+  const LABELS = /^(hook live:|hook:|lessons —|notes —|summary for )/;
+  for (const m of text.replace(COMPACT_COMMAND, "").replaceAll(FORM_POINTER, "").matchAll(/(?:^|[\s(])devtwin ([a-z][^\n]*)/gm)) if (!LABELS.test(m[1])) bad.push("bare devtwin command outside backticks: devtwin " + m[1].slice(0, 40));
   return bad;
 }
+
+test("command form: commandContext names the live config's pinned kit, and refuses a path that would end the code span", (t) => {
+  const dir = mkdtempSync(join(tmpdir(), "devtwin-ctx-"));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const at = (name) => { mkdirSync(join(dir, name)); writeFileSync(join(dir, name, "live.json"), "{}"); return realpathSync(join(dir, name, "live.json")); };
+  // Live mode: the pinned kit from the live config, never the running kit (review m3).
+  const live = at("live");
+  assert.deepEqual(commandContext({ path: live, live: { kitRoot: "/opt/example-kit" } }, KIT), { pilotPath: live, kitRoot: "/opt/example-kit" });
+  // A disposable pilot: the running kit's real path.
+  assert.deepEqual(commandContext({ path: live }, KIT), { pilotPath: live, kitRoot: KIT });
+  // Quotes, spaces and $ are safe in the single-quoted form; a backtick or a line break is refused (review m5).
+  const odd = at("it's $HOME and space");
+  assert.ok(commandFor("hook verify", commandContext({ path: odd }, KIT)).endsWith(" --pilot '" + odd.replaceAll("'", "'\\''") + "'"));
+  for (const pilot of [{ path: at("a`b") }, { path: live, live: { kitRoot: "/opt/kit\nx" } }]) assert.throws(() => commandContext(pilot, KIT), (e) => e.code === "DEVTWIN_INVALID_INPUT" && e.details.field === "commandPath");
+});
 
 test("command form: the instruction block defines the form once and stays within the cap with 120-character paths", () => {
   const context = { kitRoot: long("/kits", 120), pilotPath: long("/pilots", 120) };
@@ -126,6 +142,9 @@ test("command form: for each adapter the block holds the definition and every ho
     assert.ok(lessons.includes("1 more lesson matches; run `devtwin lesson match` " + FORM_POINTER + "."), agent + ": " + lessons);
     for (const text of [start, lessons]) assert.deepEqual(pointed(text), [], agent + ": " + text);
   }
+  // The check finds a bare command of any route outside backticks, and a compact one with no pointer.
+  assert.equal(pointed("Then run devtwin pref list.").length, 1);
+  assert.equal(pointed("Run `devtwin pref list` now.").length, 1);
 });
 
 test("command form: the not-verified start line gives the full verify command", async (t) => {

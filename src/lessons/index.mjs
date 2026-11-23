@@ -1,4 +1,4 @@
-import { join, dirname, resolve } from "node:path";
+import { join, dirname, resolve, basename } from "node:path";
 import { readFileSync, realpathSync } from "node:fs";
 import { DevtwinError } from "../errors.mjs";
 import { assertWritable } from "../config/pilot.mjs";
@@ -177,9 +177,11 @@ export async function findLesson(roots, scope, id, options = {}) {
 // .git is the directory itself. A linked worktree's .git file names its gitdir, whose commondir file names the
 // shared directory. K1: a .git file counts only for a real linked worktree, one that git worktree add made: its gitdir
 // has a commondir file, and its gitdir file points back at this root's .git. A folder with a forged .git file that
-// names another repository's Git folder gives null. K1 round 3: the gitdir must also sit directly in the
-// worktrees folder of the common directory it names, so a folder that holds its own fake gitdir (a commondir file
-// naming a bound repository and a back-link to itself) gives null too. Forging then needs a write inside the bound
+// names another repository's Git folder gives null. K1 rounds 3 and 4: the gitdir must also sit directly in the
+// worktrees folder of the common directory, its commondir file must name that directory, and its gitdir file must
+// name this folder's .git, each by real path. So a folder that holds its own fake gitdir (a commondir file naming a
+// bound repository and a back-link to itself) gives null, and so does a folder whose .git names another worktree's
+// gitdir. This is the one check for the hooks, lesson match and context resolve. Forging then needs a write inside the bound
 // repository's own .git, which already means control of that repository. Any surprise gives null, so the root can
 // match only exactly.
 const smallFile = (path) => { const node = info(path); return Boolean(node?.isFile() && node.size <= 4096); };
@@ -193,10 +195,13 @@ export function readCommonDir(root) {
     if (!match) return null;
     const gitDir = resolve(root, match[1]);
     if (!smallFile(join(gitDir, "commondir")) || !smallFile(join(gitDir, "gitdir"))) return null;
-    const back = resolve(gitDir, readFileSync(join(gitDir, "gitdir"), "utf8").trim());
-    if (realpathSync(back) !== realpathSync(dotGit)) return null;
-    const common = realpathSync(resolve(gitDir, readFileSync(join(gitDir, "commondir"), "utf8").trim()));
-    if (dirname(realpathSync(gitDir)) !== join(common, "worktrees")) return null;
+    // 1. Place: the gitdir is a folder directly in <common>/worktrees, which fixes the common directory.
+    const admin = realpathSync(gitDir), worktrees = dirname(admin), common = dirname(worktrees);
+    if (basename(worktrees) !== "worktrees") return null;
+    // 2. The commondir file names that same common directory, by real path.
+    if (realpathSync(resolve(admin, readFileSync(join(admin, "commondir"), "utf8").trim())) !== common) return null;
+    // 3. The gitdir file (the back-pointer) names this folder's .git file, by real path.
+    if (realpathSync(resolve(admin, readFileSync(join(admin, "gitdir"), "utf8").trim())) !== realpathSync(dotGit)) return null;
     return common;
   } catch { return null; }
 }
