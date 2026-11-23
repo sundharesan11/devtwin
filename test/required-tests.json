@@ -1004,6 +1004,7 @@
   "command form: the instruction block defines the form once and stays within the cap with 120-character paths",
   "command form: for each adapter the block holds the definition and every hook hint points to it",
   "command form: the not-verified start line gives the full verify command",
+  "command form: the paths do not count toward the cap, so the rules leave the same room for preferences at any path length",
   "start line: fitLine shortens, then drops, the optional parts from the highest rank down and keeps rank 0",
   "start line: the worst case keeps the start line within 400 bytes and the whole output within 1,600",
   "start line: the not-verified line with a 120-character kit path keeps its full verify command within 400 bytes",

@@ -13,7 +13,7 @@ node "$DEVTWIN_KIT/bin/devtwin.mjs" context resolve --pilot "<pilot.json>" --sco
 ```
 
 - `--cwd` must be a canonical path. A symlinked or non-canonical path fails with `PATH_UNSAFE`.
-- Resolution matches the Git worktree root exactly against the registry bindings in that scope. It does not match by remote, folder name or another worktree of the same repository.
+- Resolution matches the Git worktree root exactly against the registry bindings in that scope first. Then it matches a linked worktree through its Git common directory. It never matches by remote or folder name.
 - On success, `result` names the `project`, the binding and the `worktree` (`root`, `branch`, `head`, `dirty`), plus any worktree `warnings`.
 - `PROJECT_UNBOUND` carries `details.reason`. The reason `not-bound-in-scope` means that no bound root in that scope matches this worktree, exactly or through its Git common directory. The reason `ambiguous-worktree` means that bound roots of two or more projects in that scope share this worktree's Git common directory. Tell the user; do not onboard without asking. A linked worktree of a bound repository needs no onboarding: `context resolve` gives its project with `worktree.linked: true`. See [Security model](SECURITY-MODEL.md#worktree-resolution).
 

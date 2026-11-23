@@ -177,7 +177,11 @@ export async function findLesson(roots, scope, id, options = {}) {
 // .git is the directory itself. A linked worktree's .git file names its gitdir, whose commondir file names the
 // shared directory. K1: a .git file counts only for a real linked worktree, one that git worktree add made: its gitdir
 // has a commondir file, and its gitdir file points back at this root's .git. A folder with a forged .git file that
-// names another repository's Git folder gives null. Any surprise gives null, so the root can match only exactly.
+// names another repository's Git folder gives null. K1 round 3: the gitdir must also sit directly in the
+// worktrees folder of the common directory it names, so a folder that holds its own fake gitdir (a commondir file
+// naming a bound repository and a back-link to itself) gives null too. Forging then needs a write inside the bound
+// repository's own .git, which already means control of that repository. Any surprise gives null, so the root can
+// match only exactly.
 const smallFile = (path) => { const node = info(path); return Boolean(node?.isFile() && node.size <= 4096); };
 export function readCommonDir(root) {
   try {
@@ -191,7 +195,9 @@ export function readCommonDir(root) {
     if (!smallFile(join(gitDir, "commondir")) || !smallFile(join(gitDir, "gitdir"))) return null;
     const back = resolve(gitDir, readFileSync(join(gitDir, "gitdir"), "utf8").trim());
     if (realpathSync(back) !== realpathSync(dotGit)) return null;
-    return realpathSync(resolve(gitDir, readFileSync(join(gitDir, "commondir"), "utf8").trim()));
+    const common = realpathSync(resolve(gitDir, readFileSync(join(gitDir, "commondir"), "utf8").trim()));
+    if (dirname(realpathSync(gitDir)) !== join(common, "worktrees")) return null;
+    return common;
   } catch { return null; }
 }
 // The nearest folder at or above a canonical path that has a .git entry, or null.

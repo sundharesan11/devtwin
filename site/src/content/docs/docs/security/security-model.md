@@ -30,7 +30,7 @@ A linked worktree shares the binding of its Git common directory. The hooks, `le
 
 - An exact bound root comes first.
 - Otherwise a worktree resolves when its Git common directory matches the bound roots of exactly one project in the scope. Two or more projects on one common directory resolve to nothing, with the reason `ambiguous-worktree`.
-- The common directory counts only for a worktree that `git worktree add` made. A folder with a forged `.git` file never resolves.
+- The common directory counts only for a worktree that `git worktree add` made, whose Git folder is in the `worktrees` folder of the common directory. A folder with a forged `.git` file never resolves, also when it holds its own fake Git folder.
 - `context resolve` and `lesson match` read only the scope you name. The hooks turn lessons off when bound roots of two scopes match.
 - Portable handoff export still refuses a working directory outside the pilot's repositories.
 

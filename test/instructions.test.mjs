@@ -99,10 +99,12 @@ test("a block over the cap leaves out the oldest preferences and warns", async (
 
 test("a block that fills the cap exactly is kept whole", () => {
   const context = { kitRoot: "/kit", pilotPath: "/p/live.json" };
-  const base = renderBlock([{ id: "rec_a", title: "T", text: "x" }], context).text.length;
+  // K1 round 3: the cap counts the block without the two paths of its command-form line (chars).
+  const base = renderBlock([{ id: "rec_a", title: "T", text: "x" }], context).chars;
   const exact = { id: "rec_a", title: "T", text: "x".repeat(1 + BLOCK_CHARS - base) };
   const fit = renderBlock([exact], context);
-  assert.equal(fit.text.length, BLOCK_CHARS);
+  assert.equal(fit.chars, BLOCK_CHARS);
+  assert.equal(fit.text.length, BLOCK_CHARS + "/kit".length + "/p/live.json".length);
   assert.deepEqual(fit.dropped, []);
   assert.deepEqual(renderBlock([{ ...exact, text: exact.text + "x" }], context).dropped.map((d) => d.id), ["rec_a"]);
 });

@@ -13,7 +13,7 @@ import { rebuildIndex } from "../src/lessons/index.mjs";
 import { writeKitReceipt, receiptPath } from "../src/hooks/receipt.mjs";
 import { ownerAction } from "../src/hooks/owner-block.mjs";
 import { adapter, AGENT_IDS } from "../src/agents/adapters/index.mjs";
-import { renderBlock, planInstructions, BLOCK_CHARS } from "../src/agents/instructions.mjs";
+import { renderBlock, planInstructions, BLOCK_CHARS, PREFERENCE_ROOM } from "../src/agents/instructions.mjs";
 import { formLine, commandFor, FORM_POINTER, COMPACT_COMMAND, FORM_START } from "../src/agents/command-form.mjs";
 import { renderGuide, PLACEHOLDER_NOTE } from "../src/stack/guide.mjs";
 import { radarNote } from "../src/stack/digest.mjs";
@@ -42,8 +42,8 @@ function pointed(text) {
 test("command form: the instruction block defines the form once and stays within the cap with 120-character paths", () => {
   const context = { kitRoot: long("/kits", 120), pilotPath: long("/pilots", 120) };
   assert.equal(context.kitRoot.length, 120);
-  const { text, kept, dropped } = renderBlock([], context);
-  assert.ok(text.length <= BLOCK_CHARS, String(text.length));
+  const { text, chars, kept, dropped } = renderBlock([], context);
+  assert.ok(chars <= BLOCK_CHARS, String(chars));
   assert.deepEqual([kept, dropped], [[], []]);
   assert.equal(text.split(FORM_START).length - 1, 1, "one definition");
   assert.ok(text.includes(formLine(context)));
@@ -55,6 +55,22 @@ test("command form: the instruction block defines the form once and stays within
   for (const flag of ["--scope", "--project", "--session", "--stopped", "--next", "--request-id", "--apply"]) assert.ok(commands[1].includes(flag), flag);
   // A path with a space or a quote is quoted for the shell.
   assert.equal(commandFor("hook verify", { kitRoot: "/a b/it's", pilotPath: "/p q/live.json" }), "node '/a b/it'\\''s/bin/devtwin.mjs' hook verify --pilot '/p q/live.json'");
+});
+
+test("command form: the paths do not count toward the cap, so the rules leave the same room for preferences at any path length", () => {
+  const room = (context) => BLOCK_CHARS - renderBlock([], context).chars - "\nPreferences:\n".length;
+  const contexts = [{ kitRoot: "/k", pilotPath: "/p" }, { kitRoot: long("/kits", 120), pilotPath: long("/pilots", 120) }, { kitRoot: long("/kits", 400), pilotPath: long("/pilots", 400) }, { kitRoot: "/a b/it's", pilotPath: "/p q/live.json" }];
+  for (const context of contexts) {
+    assert.ok(room(context) >= PREFERENCE_ROOM, room(context) + " for " + context.kitRoot.length);
+    assert.equal(room(context), room(contexts[0]));
+  }
+  // Preferences that fill PREFERENCE_ROOM are all kept with 400-character paths; with no path discount the block
+  // would be far over the cap and would fail with LIMIT.
+  const prefs = Array.from({ length: 4 }, (_, n) => ({ id: "rec_" + n, title: "P" + n, text: "x".repeat(PREFERENCE_ROOM / 4 - 7) }));
+  assert.ok(prefs.reduce((sum, p) => sum + ("- " + p.title + ": " + p.text).length + 1, 0) <= PREFERENCE_ROOM);
+  const rendered = renderBlock(prefs, contexts[2]);
+  assert.deepEqual([rendered.kept, rendered.dropped], [prefs.map((p) => p.id), []]);
+  assert.ok(rendered.chars <= BLOCK_CHARS && rendered.text.length > BLOCK_CHARS, rendered.chars + " " + rendered.text.length);
 });
 
 // The session-start and prompt payloads of each agent, in its own shape.

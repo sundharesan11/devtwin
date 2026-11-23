@@ -94,6 +94,16 @@ test("linked worktree: a forged .git file that names the bound repository's Git 
     await writeFile(join(dir, ".git"), "gitdir: " + gitdir + "\n");
     forged.push(await realpath(dir));
   }
+  // K1 round 3 (review M1): a folder that holds its own fake gitdir, with a commondir file that names the bound
+  // repository's Git folder and a back-link to itself. Git accepts this layout, so only the place of the gitdir (it is
+  // not under <commondir>/worktrees) tells it apart from a real linked worktree.
+  const crafted = join(s.sandbox, "crafted");
+  await mkdir(join(crafted, ".fakegit"), { recursive: true });
+  await writeFile(join(crafted, ".git"), "gitdir: .fakegit\n");
+  await writeFile(join(crafted, ".fakegit", "commondir"), commonDir + "\n");
+  await writeFile(join(crafted, ".fakegit", "gitdir"), join(await realpath(crafted), ".git") + "\n");
+  await writeFile(join(crafted, ".fakegit", "HEAD"), "ref: refs/heads/main\n");
+  forged.push(await realpath(crafted));
   assert.equal(readCommonDir(s.linked), commonDir, "the real linked worktree proves its common directory");
   for (const dir of forged) {
     assert.equal(readCommonDir(dir), null, dir);
