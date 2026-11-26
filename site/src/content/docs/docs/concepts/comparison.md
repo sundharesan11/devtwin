@@ -21,7 +21,7 @@ There are three common places to keep context for a coding agent. They solve dif
 | **How it is written** | Edited by hand and reviewed like code | Often captured automatically by the product | Agents and daily jobs write project knowledge, audited and undoable; anything global or outbound asks you |
 | **Evidence and freshness** | None built in; it says what it says | Depends on the product | Every record can cite sources, and briefs flag records whose source files changed |
 | **History** | Git history | Depends on the product | Records are immutable; replacing one keeps the old one on disk |
-| **Across agents** | Only agents that read that file name | Tied to one product | Claude Code and Codex through the same CLI |
+| **Across agents** | Only agents that read that file name | Tied to one product | Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode through the same CLI |
 | **Separation between organizations** | One repository at a time | Depends on the product | Explicit [scopes](/docs/concepts/scopes-and-projects/), one per organization or client |
 | **Best for** | Team conventions: how to build, test and contribute | Personal convenience inside one tool | Private, per-developer project knowledge you want to carry between sessions and agents |
 
@@ -50,7 +50,7 @@ devtwin is built for one developer carrying private knowledge across sessions, a
 - Context is private by default and lives outside the repository, so it can't be committed or pushed by accident.
 - Records are immutable, cite their sources, and carry a freshness label in every brief.
 - Scopes keep one client's context out of another client's brief.
-- The same brief works for Claude Code and Codex.
+- The same brief works for Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode.
 
 What it does not do: it does not verify that a record is true, does not write agent memory, and does not sync your store between machines. The daily backup is an encrypted archive on your own disk. See [Limitations](/docs/security/limitations/).
 

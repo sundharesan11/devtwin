@@ -30,7 +30,7 @@ devtwin --version
 You should see a version line like this:
 
 ```json
-{"ok":true,"command":"version","result":{"name":"devtwin","version":"0.1.0-alpha.2"}}
+{"ok":true,"command":"version","result":{"name":"devtwin","version":"0.1.0-alpha.3"}}
 ```
 
 Every `devtwin` command prints exactly one line of JSON: `{"ok": true, ...}` on success, or `{"ok": false, "error": {...}}` on failure. To list every command:
@@ -66,6 +66,8 @@ You should see `"ok":true`. Most checks are marked `passed`. The checks that nee
 ## Live mode runs a pinned kit
 
 For daily use, [live mode](/docs/guides/live-mode/) copies the installed package into a locked kit folder under `~/.devtwin/kits/` with `devtwin kit install`, and pins it. Hooks, jobs and agent skills run that pinned folder, never npm's global folder. A later `npm i -g` changes nothing until you pin the new kit. At the terminal, the global `devtwin` command runs live commands in the pinned kit for you.
+
+To upgrade, run `npm i -g devtwin@alpha`. In live mode, then follow [Upgrade the kit](/docs/guides/live-mode/#upgrade-the-kit) to pin the new kit.
 
 ## From a Git clone
 

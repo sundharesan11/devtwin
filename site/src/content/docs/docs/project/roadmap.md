@@ -3,7 +3,7 @@ title: Roadmap
 description: What devtwin can do today and what comes next, in priority order.
 ---
 
-devtwin is an early local tool, not yet a packaged release. The order below favors daily use: protect private state, prove it on real projects, connect sessions, then bring over an existing setup.
+devtwin is an early local tool. Alpha releases are on npm, and it is not yet a daily-use release. The order below favors daily use: protect private state, prove it on real projects, connect sessions, then bring over an existing setup.
 
 ## Available today
 
@@ -12,7 +12,7 @@ devtwin is an early local tool, not yet a packaged release. The order below favo
 - Bounded context briefs with freshness labels.
 - Agent proposals that you review and publish.
 - Private, selected-record handoff packets.
-- Bundled skills for Claude Code and Codex, with journaled install, uninstall, recovery and rollback check.
+- Bundled skills for Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode, with journaled install, uninstall, recovery and rollback check.
 - Live mode: a private store under `~/.devtwin`, a pinned kit (a package kit folder or a Git clone) and your real skill folders.
 - Personal profile, `devtwin-setup` skill and skill templates.
 - Stack watch with approved hosts and dated Markdown or HTML digests.
@@ -27,7 +27,7 @@ devtwin is an early local tool, not yet a packaged release. The order below favo
 - [Encrypted daily backups](/docs/guides/live-mode/#backup-and-restore) to a folder you approve, and an owner-run restore.
 - Confirmed kit and config paths, so skills stop asking for them and the hook receipt renews itself.
 - Owner answers on the terminal over SSH, as an opt-in.
-- The agent hook for Claude Code and Codex, which also blocks owner-only commands from agent shells.
+- The agent hook for Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode, which also blocks owner-only commands from agent shells.
 - A guided `setup` that walks through each setup step.
 - An [organization hub](/docs/guides/organization-hub/) for sharing accepted lessons and "working on" notes with colleagues.
 - [Preferences](/docs/guides/preferences-and-templates/) captured from your corrections and delivered through a managed block in your own agent instruction files, and output templates for an RCA, a report and a decision note.
@@ -45,7 +45,7 @@ Lessons, the hook, setup and the hub are tested against local fixtures. They hav
 | 4 | **Selective migration** from an existing personal setup: dry-run mapping, approved records only. | Planned. |
 | 5 | **More connectors** beyond GitHub and Slack, with account and workspace verification. | Planned. |
 | 6 | **Company knowledge hub** adapter with reviewed, sanitized promotion. | Implemented as the [organization hub](/docs/guides/organization-hub/). |
-| Next | **Preferences and templates**: preferences captured from corrections you confirm, a managed block in `~/.claude/CLAUDE.md` and `~/.codex/AGENTS.md`, and output templates. | Implemented; see [Preferences and templates](/docs/guides/preferences-and-templates/). |
+| Next | **Preferences and templates**: preferences captured from corrections you confirm, a managed block in the instruction files of your agents, and output templates. | Implemented; see [Preferences and templates](/docs/guides/preferences-and-templates/). |
 | Next | **Release radar**: a weekly digest of vendor releases for your stack, with schedules and notifications. | Implemented; see [Stack watch and radar](/docs/guides/stack-watch/). |
 | P6 | **Autonomy foundations**: the tier table and standing consents, the audit log with `activity` and `undo`, daily encrypted backups, confirmed paths and terminal answers over SSH. | Implemented. |
 | P7 | **Matching and delivery**: where-things-live locations, action-matched lessons, a session summary and automatic handoffs. | Implemented. |
@@ -53,7 +53,7 @@ Lessons, the hook, setup and the hub are tested against local fixtures. They hav
 | P9 | **Setup review**: a review of your setup, and real-agent acceptance checks. | Implemented. You run the real-agent scenarios yourself; they have not been run yet. |
 | 7 | **Skill export**: explicit file selection with privacy and rights review. | Planned. |
 | 8 | **Weekly skill updater** and scheduler, disabled until you enable it. | Planned. |
-| 9 | **Open-source release**: versioned releases and a reviewed release process. | Planned. |
+| 9 | **Open-source release**: versioned releases and a reviewed release process. | Partly done. Alpha releases go to npm through the release workflow; the rights and history review remains. |
 
 Priorities 5 to 8 don't block offline daily use. Nothing on this list connects an account, publishes, installs or migrates anything on its own.
 
@@ -63,7 +63,7 @@ Skill-builder and skill-source features are frozen until priorities 1 to 4 ship.
 
 ## Known gaps being tracked
 
-- CLI records name their caller (`claude`, `codex` or `human`) from environment variables. This is a label, not proof of who ran the command.
+- CLI records name their caller (`claude`, `codex`, `gemini`, `antigravity`, `opencode` or `human`) from environment variables. This is a label, not proof of who ran the command.
 - `record publish --apply` does not check who the controller is.
 - The default onboarding request ID comes from your flags, not file contents; pass a new `--request-id` after the repository changes.
 - Bundled skills are checked for command routes, not every flag.

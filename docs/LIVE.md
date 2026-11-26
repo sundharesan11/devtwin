@@ -1,6 +1,6 @@
 # Live activation runbook
 
-This runbook turns on live mode on one machine. Live mode runs the kit against a real private store and the real Claude and Codex skill folders. It onboards one real repository, read-only. Follow the steps in order. Every write needs an owner approval. From step 13, one setup batch puts many writes behind one owner dialog.
+This runbook turns on live mode on one machine. Live mode runs the kit against a real private store and the real skill folders of the agents that you select. It onboards one real repository, read-only. Follow the steps in order. Every write needs an owner approval. From step 13, one setup batch puts many writes behind one owner dialog.
 
 Live mode is implemented. The owner ran steps 1 to 15 and 17 on one machine on 2026-10-25 at kit commit `b95ff72`, and they passed. They covered live init, store init, scope add and read-only onboarding of one real client repository, with identical snapshots before and after onboarding. They covered bundled install for Claude and Codex (three skills each, no conflicts). Fresh `claude -p` and `codex exec` sessions from a neutral folder listed the bundled skills (then named `devctx-*`), resolved the project and read the brief with an identical brief hash. Uninstall, `rollback-check` `ok` and reinstall also passed. Step 16 (interactive sessions) is still the owner's to run, and step 14's kit export is not yet in the shell profile. That activation predates the rename to devtwin; a setup made under the old name moves with [Migrating from devctx](MIGRATING.md). See the [roadmap](ROADMAP.md).
 
@@ -142,7 +142,7 @@ LIVE_CONFIG="$HOME/.devtwin/live.json"
 REPO='<absolute real path of the repository>'
 ```
 
-`<kit path>` is the `kitRoot` that `devtwin kit install` prints in step 5, such as `~/.devtwin/kits/0.1.0-alpha.2-<digest prefix>`. For a Git clone, it is `$HOME/.devtwin/kit`.
+`<kit path>` is the `kitRoot` that `devtwin kit install` prints in step 5, such as `~/.devtwin/kits/0.1.0-alpha.3-<digest prefix>`. For a Git clone, it is `$HOME/.devtwin/kit`.
 
 `<scope>` is the scope name, `<project>` a project ID that starts with the scope, such as `example.atlas`, and `<actor>` an actor reference such as `email:you@example.com`. Do not write real client names or account identifiers into this repository, issues or public notes.
 
@@ -527,7 +527,7 @@ Then reinstall with a fresh preview and approval (step 13), and repeat a fresh-s
 
 ## Upgrading the kit
 
-For a package kit, follow [Upgrading](UPGRADING.md): install the new release, `kit install`, `live set-kit --kit`, then one setup batch. A rollback is `live set-kit` to an earlier kit folder from 0.1.0-alpha.1 or later, then one batch. Older kits cannot load a live config that names a package kit. The same guide moves a Git-clone setup to a package kit.
+For a package kit, follow [Upgrading](UPGRADING.md): install the new release, `kit install`, `live set-kit --kit` and one setup batch. Then apply the instruction block again, because its command form names the kit folder. In Codex, trust the changed hook entries in `/hooks`. A rollback is `live set-kit` to an earlier kit folder from 0.1.0-alpha.1 or later, then one batch and the instruction block again. Older kits cannot load a live config that names a package kit. An earlier kit must also know every agent in the live config. The same guide moves a Git-clone setup to a package kit.
 
 `live set-kit` takes `--commit <sha>` for a Git kit or `--kit <version>+<digest>` for a package kit, never both. It runs from the new kit. Its apply shows the owner dialog "Change the kit devtwin runs". The dialog names the old and new kit IDs and folders. For a package kit, it also asks you to compare the digest with the one in the GitHub release for that version. The devtwin hook denies `live set-kit --apply` from an agent shell.
 

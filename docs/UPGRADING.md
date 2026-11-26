@@ -8,7 +8,7 @@ devtwin is an alpha. A new release goes to the `alpha` dist-tag on npm first, an
 
 Live mode never runs code from npm's global folder. Hooks, jobs and agent-invoked skills run a pinned copy of the kit under `~/.devtwin/kits/`. A new `npm i -g` changes only the global `devtwin` command. Nothing in live mode changes until you pin the new kit.
 
-An upgrade has four steps:
+An upgrade has five steps:
 
 1. Install the new release with npm.
 2. Copy it into a kit folder with `devtwin kit install`.
@@ -112,6 +112,14 @@ LIVE_CONFIG="$HOME/.devtwin/live.json"
 The devtwin hook denies `kit install --apply`, `live set-kit --apply`, `setup apply --all-pending` and `instructions apply` from an agent shell. An agent can show you the previews, but you run each apply.
 
 Until the batch runs, the hook lines and job files still name the old kit. The live config no longer pins that kit, so the kit gate refuses their live commands. `schedule status` shows those jobs as `outdated`. The OpenCode plugin file names the old kit too, and `agents status` shows it as `outdated`.
+
+### From 0.1.0-alpha.2 to 0.1.0-alpha.3
+
+Do every step of the upgrade. Three points are new in this release:
+
+- Do step 10. The block from 0.1.0-alpha.2 has no command form, and the new hook hints point to that line. Until you apply the block again, the hints name a command that the block does not define.
+- Do step 13. The batch rewrites each Codex hook entry with the new kit folder. Codex runs a changed entry only after you trust it in `/hooks`.
+- This release adds Antigravity CLI and OpenCode. The upgrade does not add them to your live config. After `live add-agent` for one of them, the 0.1.0-alpha.2 kit refuses the live config, so you cannot roll back to it. Read [Roll back after you add an agent](#roll-back-after-you-add-an-agent) before you add one.
 
 ## Add an agent after an upgrade
 

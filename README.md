@@ -70,7 +70,7 @@ devtwin works alongside `AGENTS.md` and `CLAUDE.md`. Instructions in a repositor
 
 ## Use it on your own machine
 
-The demo uses throwaway folders. To run devtwin on your real projects, follow [Live activation](https://github.com/sundharesan11/devtwin/blob/main/docs/LIVE.md). [Upgrading](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md) explains how to move to a new release or roll back.
+The demo uses throwaway folders. To run devtwin on your real projects, follow [Live activation](https://github.com/sundharesan11/devtwin/blob/main/docs/LIVE.md). To upgrade, run `npm i -g devtwin@alpha`, then follow [Upgrading](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md). It also explains how to roll back.
 
 Live mode runs a pinned copy of the kit under `~/.devtwin/kits/`, never from npm's global folder. A later `npm i -g` changes nothing until you pin the new kit.
 
@@ -88,10 +88,13 @@ node bin/devtwin.mjs help
 
 ## Status
 
-devtwin is an alpha. The latest release is `0.1.0-alpha.2` on npm.
+devtwin is an alpha. The latest release is `0.1.0-alpha.3` on npm.
 
+- devtwin supports five agents: Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode. Each has the support level `full`: the skills, the instruction block and the owner-action block work. `agents status` shows the level and the capabilities of each agent.
+- Claude Code and Codex can get a lesson before a tool runs. Gemini CLI, Antigravity CLI and OpenCode get it after the tool runs.
 - Live mode works on a real machine, and fresh Claude Code and Codex sessions find the skills and read the brief.
-- Lessons, the agent hook, the team hub, preferences, backups and the weekly review pass their tests against local fixtures. Runs with real agents are still to come.
+- Real sessions of Antigravity CLI 1.5 and OpenCode 2.3.0 ran the devtwin hooks in a disposable setup, not from a real agent home. Gemini CLI is checked against its docs and tests only.
+- Lessons, the agent hook, the team hub, preferences, backups and the weekly review pass their tests against local fixtures. More runs with real agents are still to come.
 - Accounts per org are planned. Known gaps are in [Limitations](https://github.com/sundharesan11/devtwin/blob/main/docs/LIMITATIONS.md).
 - devtwin needs Node.js 22.13 or later and Git. macOS is the reference platform. CI also runs on Ubuntu, but Linux support is not claimed yet. Windows is unsupported.
 

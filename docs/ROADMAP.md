@@ -1,6 +1,6 @@
 # Readiness and remaining work
 
-Status snapshot: 2026-10-27. This is a reviewed local pilot with an implemented and activated live mode, not a daily-use installer or a publicly released package. This file tracks product capabilities, not private projects, accounts or tasks.
+Status snapshot: 2026-10-27. This is a reviewed local pilot with an implemented and activated live mode, not a daily-use release. The release status was last updated for `0.1.0-alpha.3`: devtwin is an alpha on npm under the `alpha` dist-tag. This file tracks product capabilities, not private projects, accounts or tasks.
 
 Last recorded CI evidence: [Pilot CI](CI.md) run 38154524118 on `main` at commit `8f1133a`, 2026-10-11. All four lanes (macOS 15 and Ubuntu 24.04, each with Node 26.4.0 and 22.13.0) passed. That run is evidence for `8f1133a` only. A CI run for `b95ff72` is pending. Linux and the Node 22.13.0 floor remain evaluation lanes; support for them is not claimed.
 
@@ -14,7 +14,7 @@ Skill-builder A/B, the source catalog, pinned acquisition, reviewed disposable s
 
 The pilot provides scoped project onboarding, immutable context records, decisions and supersession, and bounded context briefs. It also provides advisory agent handoffs, disposable skill installation, fake-provider identity checks, private learning proposals and a read-only doctor. These are tool-level checks, not proof of real-agent behavior.
 
-The toolkit is licensed under Apache-2.0. The npm package remains marked private to prevent accidental publication. Owner rights/history clearance and the explicit public-release decision remain open. There is no live connector or send operation and no automatic migration. Installation files alone do not prove discovery by an agent.
+The toolkit is licensed under Apache-2.0. Only the release workflow publishes the npm package, after the owner approves the run. Owner rights/history clearance and the explicit public-release decision remain open. There is no live connector or send operation and no automatic migration. Installation files alone do not prove discovery by an agent.
 
 ## Delivery order
 
@@ -34,7 +34,7 @@ The order favors daily use: protect private state first, then prove one real pro
 | Promotion phase P6 to P9 | The [promotion-phase plan](plans/2026-10-27-001-feat-devtwin-promotion-phase-plan.md). P6, autonomy foundations: **implemented.** It adds the tier table and standing consents, the audit log, `activity` and `undo`, daily encrypted backups, confirmed paths and terminal answers over SSH ([SECURITY-MODEL.md](SECURITY-MODEL.md#tiers)). P7, matching and delivery: **implemented.** It adds locations, command lessons, the session summary and the stop stub with `handoff write` ([HARNESS.md](HARNESS.md)). P8, promotion and sharing: **implemented.** It adds the daily import, the held queue, repository write-back, the weekly review and model retirements ([HARNESS.md](HARNESS.md)). P9, review and agent checks: **implemented.** It adds the setup review and the real-agent scenario kit. Next: the owner runs the scenarios in visible terminals, and the colleague check | The plan's verification contract for each unit |
 | 7: skill distribution | Skill export (skill-builder milestone C): explicit file selection and privacy/rights review | Export preparation tests; export is not publication |
 | 8: skill updates | Weekly third-party skill updater and scheduler | Disabled schedule and harmless run first; fresh-host discovery evidence; explicit user enablement |
-| 9: open-source release | Core Apache-2.0, public-alpha guides and CI configured; provenance/history clearance, successful release-candidate CI and versioned release process remain | Owner rights clearance, fresh-machine setup, reviewed version/platform evidence, verified private reporting channel, explicit repository and release approval |
+| 9: open-source release | Core Apache-2.0, public-alpha guides, CI and the npm release workflow configured; provenance/history clearance and successful release-candidate CI remain | Owner rights clearance, fresh-machine setup, reviewed version/platform evidence, verified private reporting channel, explicit repository and release approval |
 
 The owner deferred priority 1 on 2026-10-16, so priority 2 was built first. On 2026-10-17 the owner set the order live activation (priority 2) → organization identity routing → personal harness → session hooks. The harness was built before routing. The row numbers stay until the harness plan's renumbering (U11) lands. Backup now exists, but the live store has a backup only after the owner approves a backup folder; see [Limitations](LIMITATIONS.md). Priorities 5–8 need not block an offline daily-use pilot. The open-source release comes last. Do not build every connector before validating the core with one real project. None of these rows authorizes an account connection, publication, installation, migration or outbound action on its own.
 

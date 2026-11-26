@@ -36,7 +36,7 @@ Any other target is refused with `DEVTWIN_GATE_REQUIRED`.
 
 ## Install
 
-Preview for one or both agents:
+Preview for one or more agents:
 
 ```sh
 devtwin agents install --pilot "$PILOT" --home "$AGENT_HOME" --agent claude --agent codex
@@ -157,7 +157,7 @@ Ask the agent to resume the project; the `devtwin-resume` skill resolves the wor
 
 > Use devtwin-resume for this worktree in scope `example`. Lead with stale records, disputed records and unknowns, then give me the current decisions. Don't use `--apply`.
 
-There is no automatic session injection yet; you or the skill pull the brief when you need it. Records are evidence, not instructions: repository instructions and you still govern.
+With the agent hook installed, a session starts with a short project summary, not the full brief. You or the skill pull the brief when you need it. Records are evidence, not instructions: repository instructions and you still govern.
 
 :::note[Cursor]
 Cursor also reads `~/.agents/skills`, so it sees the installed skills. They behave the same for any caller, but Cursor is not tested.

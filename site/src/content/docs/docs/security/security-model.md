@@ -159,7 +159,7 @@ Five points are specific to OpenCode:
 - **The deny is the only gate.** Before the `shell` tool runs, the plugin blocks an owner-only devtwin command, and the model reads the devtwin reason. It approves no tool. A hook that fails, prints something else, is too large or takes over 10 seconds counts as nothing to say, and the tool runs. As for every agent, the hook is not a sandbox.
 - **What leaves OpenCode, and what enters it.** Of a tool call, the plugin passes on only the command, the path and the header lines of a patch, never a file body. On each model call it adds the whole text of `~/.config/opencode/devtwin.md` as system context and does not check that text. The plugin reads the file only when it is a regular file of at most 65,536 bytes, and it follows no link. A link, a folder or a FIFO at that path adds nothing. devtwin changes only the marker block in that file, and never creates or edits an OpenCode `AGENTS.md` or `opencode.json`. Before the lesson text that it appends to a tool result, the plugin puts one marker line, which says that the text was added after the tool output and is not part of it. Without that line, a model can read the lesson as part of the file.
 
-When it writes the block, the owner dialog of `instructions apply` always names Claude Code and Codex, and it adds each other agent that reads a planned file. A plan that holds `GEMINI.md` adds Gemini CLI and Antigravity CLI.
+When it writes the block, the owner dialog of `instructions apply` always names Claude Code and Codex, and it adds each other agent that reads a planned file. A plan that holds `GEMINI.md` adds Gemini CLI and Antigravity CLI. A plan that holds the OpenCode file adds OpenCode.
 
 ## Network use
 
