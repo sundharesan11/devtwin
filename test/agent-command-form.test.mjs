@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { join } from "node:path";
-import { mkdir, writeFile, realpath, rm } from "node:fs/promises";
+import { mkdir, writeFile, readFile, realpath, rm } from "node:fs/promises";
 import { realpathSync, mkdtempSync, rmSync, readdirSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
@@ -234,6 +234,39 @@ test("start line: the not-verified line with a 120-character kit path keeps its 
   assert.ok(Buffer.byteLength(line) <= START_LINE_BYTES, Buffer.byteLength(line) + ": " + line);
   assert.ok(line.startsWith("devtwin hook: kit not verified ("), line);
   assert.ok(line.includes("`" + commandFor("hook verify", { kitRoot, pilotPath: await realpath(s.path) }) + "`. Lessons are off."), line);
+});
+
+// K1 round 5 (Codex final review, major 2): a folder at base whose real path is about length characters long, in
+// components of at most 40 characters of unit, so that no name passes the file system's limit.
+async function deepDir(base, length, unit) {
+  let path = base;
+  for (let i = 0; path.length < length; i++) path = join(path, String(i % 10) + unit.repeat(Math.max(1, Math.min(40, length - path.length - 2) / unit.length | 0)));
+  await mkdir(path, { recursive: true });
+  return realpath(path);
+}
+test("start line: the not-verified line stays within 400 bytes for long and multibyte paths, and keeps the full verify command whenever it fits", async (t) => {
+  const s = await onboardFixture(t, { scope: SCOPE, project: PROJECT });
+  await applyOnboard(s.roots, s.pilot, s.input, { fingerprint: s.plan.fingerprint, now });
+  const base = await realpath(s.sandbox), seen = {};
+  for (const [label, length, unit] of [["120", 120, "k"], ["200", 200, "k"], ["800", 800, "k"], ["multibyte", 200, "日本語🙂"]]) {
+    // No receipt: the kit and pilot paths both have about length characters.
+    const kitRoot = await deepDir(join(base, "kit-" + label), length, unit);
+    const pilotPath = join(await deepDir(join(base, "pilot-" + label), length - 11, unit), "pilot.json");
+    await writeFile(pilotPath, await readFile(s.path));
+    const chunks = [];
+    await main(["hook", "--event", "session-start", "--agent", "claude", "--pilot", pilotPath], { stdout: { write: (v) => { chunks.push(v); return true; } }, stdin: JSON.stringify({ session_id: "s-long-" + label, cwd: s.repo, hook_event_name: "SessionStart", source: "startup" }), now, env: {}, kitRoot });
+    const context = JSON.parse(chunks.join("")).hookSpecificOutput.additionalContext;
+    assert.ok(Buffer.byteLength(context) <= START_LINE_BYTES, label + ": " + Buffer.byteLength(context) + ": " + context);
+    assert.ok(Buffer.byteLength(context) <= START_BYTES, label);
+    assert.ok(!context.includes("\n"), label + ": one line");
+    const full = "devtwin hook: kit not verified (missing); run `" + commandFor("hook verify", { kitRoot, pilotPath: await realpath(pilotPath) }) + "`. Lessons are off.";
+    // The full command is kept whenever it fits; otherwise the compact command and the pointer to the block.
+    if (Buffer.byteLength(full) <= START_LINE_BYTES) assert.ok(context.startsWith(full), label + ": " + context);
+    else assert.ok(context.startsWith("devtwin hook: kit not verified (missing); run `devtwin hook verify` " + FORM_POINTER + ". Lessons are off."), label + ": " + context);
+    assert.deepEqual(pointed(context), [], label);
+    seen[label] = Buffer.byteLength(full) <= START_LINE_BYTES ? "full" : "compact";
+  }
+  assert.deepEqual(seen, { 120: "full", 200: "compact", 800: "compact", multibyte: "compact" });
 });
 
 test("command form: a radar guide and a digest note give the full executable form", (t) => {

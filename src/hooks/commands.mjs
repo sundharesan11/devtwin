@@ -78,15 +78,24 @@ function readIndexes(stateRoot) {
   const scopes = names.filter((n) => n.endsWith(".json") && SCOPE_ID.test(n.slice(0, -5))).map((n) => n.slice(0, -5)).sort();
   return Promise.all(scopes.map((scope) => readIndex({ stateRoot }, scope))).then((all) => all.filter(Boolean));
 }
-// The scope index for the payload's worktree. Root and common-dir comparisons are exact on real paths. A root bound
-// in two or more scopes resolves to nothing (fail closed for isolation).
+// The scope index for the payload's worktree. Root and common-dir comparisons are exact on real paths. Fail closed for
+// isolation: the worktree resolves to nothing ("ambiguous") when matches come from two or more scopes, or when any one
+// scope is ambiguous (bound roots of two or more of its projects share the worktree's Git common directory), even
+// though another scope names one project. reason is "ambiguous-root" when the root itself is bound in two or more
+// scopes, and "ambiguous-worktree" otherwise, the reason that context resolve and lesson match give.
 async function locate(stateRoot, cwd) {
   const canonical = realpathSync(cwd), root = findRepoRoot(canonical);
   if (!root) return { status: "no-repo" };
   const commonDir = readCommonDir(root);
   const hits = [];
-  for (const index of await readIndexes(stateRoot)) { const repo = resolveRepo(index, { root, commonDir }); if (repo) hits.push({ index, repo }); }
-  if (new Set(hits.map((h) => h.repo.scope)).size > 1) return { status: "ambiguous" };
+  let ambiguousScope = false;
+  for (const index of await readIndexes(stateRoot)) {
+    const { status, repo } = resolveRepo(index, { root, commonDir });
+    if (status === "ambiguous") ambiguousScope = true;
+    else if (repo) hits.push({ index, repo });
+  }
+  if (ambiguousScope) return { status: "ambiguous", reason: "ambiguous-worktree" };
+  if (new Set(hits.map((h) => h.repo.scope)).size > 1) return { status: "ambiguous", reason: hits.every((h) => h.repo.via === "root") ? "ambiguous-root" : "ambiguous-worktree" };
   return hits.length ? { status: "bound", cwd: canonical, root, ...hits[0] } : { status: "unbound" };
 }
 const plural = (n, word) => n + " " + word + (n === 1 ? "" : "s");
@@ -156,7 +165,7 @@ export function fitLine(parts, max = START_LINE_BYTES) {
 }
 function startParts(found, key, notices = 0, kit) {
   const kitPart = part(1, " Kit: `" + kit + "`.");
-  if (found.status === "ambiguous") return [part(0, "devtwin hook: this folder is bound in more than one scope, so lessons are off."), kitPart];
+  if (found.status === "ambiguous") return [part(0, found.reason === "ambiguous-root" ? "devtwin hook: this folder is bound in more than one scope, so lessons are off." : "devtwin hook: bound roots of more than one project share this worktree's Git folder, so lessons are off (ambiguous-worktree)."), kitPart];
   const session = [kitPart, part(0, " Session ID for lesson propose: " + sessionTag(key) + ".")];
   if (found.status !== "bound") return [part(0, "devtwin hook live: this folder is not a bound project."), ...session];
   const count = found.index.entries.filter((e) => e.reach !== "project" || e.project === found.repo.project).length;
@@ -224,12 +233,20 @@ function deferred(state, { found, matches, now, hold }) {
 }
 // The session-start line when the receipt cannot be trusted. It names the kit and the exact command to run from it, as
 // the skills do, never a devtwin found on PATH. quote is the command form's POSIX quoting (src/agents/command-form.mjs).
+// K1 round 5: the full command holds both paths, so long or multibyte paths can make it pass START_LINE_BYTES on its
+// own. The line then gives the compact hint, `devtwin hook verify` with FORM_POINTER, as every other hook hint does:
+// the instruction block names the kit and the pilot in full, and it has no byte cap of its own. The line is then at
+// most about 130 bytes plus the Kit part, which fitLine drops when it does not fit. So this line is never over
+// START_LINE_BYTES, and with nothing else in the output it stays inside START_BYTES too.
 function notVerified(problem, kitRoot, pilotPath) {
   let kit = null;
   try { kit = runningKit(kitRoot); } catch { /* The kit folder is gone: no path to name. */ }
   const bin = kit ? quote(kit + "/bin/devtwin.mjs") : "'<kit>/bin/devtwin.mjs'";
-  // The remedy keeps its full command. The Kit part repeats the kit path that the command names, so it goes first.
-  return fitLine([part(0, "devtwin hook: kit not verified (" + problem + "); run `node " + bin + " hook verify --pilot " + quote(pilotPath) + "`. Lessons are off."), ...(kit ? [part(1, " Kit: `" + kit + "`.")] : [])]);
+  const remedy = (command) => "devtwin hook: kit not verified (" + problem + "); run " + command + ". Lessons are off.";
+  const full = remedy("`node " + bin + " hook verify --pilot " + quote(pilotPath) + "`");
+  // The full command is kept whenever it fits. The Kit part repeats the kit path that it names, so it goes first.
+  const kitPart = kit ? [part(1, " Kit: `" + kit + "`.")] : [];
+  return fitLine([part(0, bytes(full) <= START_LINE_BYTES ? full : remedy(hint("hook verify"))), ...kitPart]);
 }
 async function respond({ stateRoot, pilot, pilotPath, pilotBytes, agent, event, input, kitRoot, now, runGit }) {
   const hooks = adapter(agent).hooks;
@@ -253,7 +270,7 @@ async function respond({ stateRoot, pilot, pilotPath, pilotBytes, agent, event, 
   }
   if (event === "PreCompact" || event === "Stop") { await stopStep(stateRoot, { agent, event, key, cwd: input.cwd, now, runGit }); return null; }
   const found = await dropRemoved(stateRoot, await locate(stateRoot, input.cwd));
-  if (found.status === "ambiguous") logHook(stateRoot, { at, agent, event, code: "ambiguous-root" });
+  if (found.status === "ambiguous") logHook(stateRoot, { at, agent, event, code: found.reason });
   if (event === "SessionStart") {
     const line = fitLine([...startParts(found, key, found.status === "bound" ? await openNoticeCount(stateRoot, found.repo.scope) : 0, runningKit(kitRoot)), ...paths]);
     let server = null;
@@ -330,7 +347,7 @@ async function stopStep(stateRoot, { agent, event, key, cwd, now, runGit }) {
   const log = (code) => logHook(stateRoot, { at: now.toISOString(), agent, event, code });
   try {
     const found = await locate(stateRoot, cwd);
-    if (found.status === "ambiguous") log("ambiguous-root");
+    if (found.status === "ambiguous") log(found.reason);
     if (found.status !== "bound") return;
     if (!await writeStub(stateRoot, { scope: found.repo.scope, project: found.repo.project, root: found.root }, { key, now, ...(runGit ? { runGit } : {}) })) log("stub-skipped");
   } catch (error) { log("stub-" + String(error?.code ?? "internal").replace(/^DEVTWIN_/, "").toLowerCase()); }

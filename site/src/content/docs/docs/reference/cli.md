@@ -822,7 +822,7 @@ Lists the lessons and preferences that match a path, a package, prompt text or a
 devtwin lesson match --pilot "$PILOT" --scope example --cwd "$REPO" --path src/billing/client.js
 ```
 
-Returns `matches` (each with `id`, `matchedBy` and a `line` of at most 240 bytes), `index` (`current`, `stale`, `missing` or `invalid`) and the resolved `repo`.
+Returns `matches` (each with `id`, `matchedBy` and a `line` of at most 240 bytes), `index` (`current`, `stale`, `missing` or `invalid`) and the resolved `repo`. A `--cwd` that resolves to no project fails with `DEVTWIN_PROJECT_UNBOUND` and the reason `not-bound-in-scope`, or `ambiguous-worktree` when bound roots of two or more projects in the scope share its Git common directory.
 
 ### `lesson show`
 

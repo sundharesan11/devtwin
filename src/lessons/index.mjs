@@ -224,8 +224,11 @@ export function matchWorktree(entries, { root, commonDir }) {
   if (new Set(shared.map((e) => e.project)).size > 1) return { status: "ambiguous" };
   return shared.length ? { status: "common-dir", entry: shared[0] } : { status: "none" };
 }
-// Path-to-scope lookup (KTD6) for one scope's index: the project, or null when the rule above finds none or more than one.
+// Path-to-scope lookup (KTD6) for one scope's index: { status, repo }. status is the status of the rule above; repo
+// is { scope, project, via } for "root" and "common-dir", and null for "none" and "ambiguous". K1 round 5: the result
+// keeps "ambiguous" apart from "none", so no caller can read an ambiguous scope as an unbound one and go on to the
+// next scope.
 export function resolveRepo(index, { root, commonDir }) {
   const match = matchWorktree(index.roots, { root, commonDir });
-  return match.entry ? { scope: match.entry.scope, project: match.entry.project, via: match.status } : null;
+  return { status: match.status, repo: match.entry ? { scope: match.entry.scope, project: match.entry.project, via: match.status } : null };
 }

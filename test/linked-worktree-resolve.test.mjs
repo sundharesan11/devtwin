@@ -12,6 +12,7 @@ import { buildPortableHandoff } from "../src/handoff/portable.mjs";
 import { rebuildIndex, readCommonDir } from "../src/lessons/index.mjs";
 import { writeKitReceipt } from "../src/hooks/receipt.mjs";
 import { writeStub } from "../src/hooks/stub.mjs";
+import { hookLogPath } from "../src/hooks/session.mjs";
 
 // K1 (KTD6): context resolve, lesson match and the hooks resolve a linked worktree of a bound repository by one rule
 // (matchWorktree in src/lessons/index.mjs). The repository at repos/atlas is bound as acme.atlas.
@@ -24,13 +25,15 @@ async function bound(t) {
   await fixtureGit(s.repo, ["worktree", "add", "-q", "-b", "feature", linked]);
   return { ...s, linked: await realpath(linked) };
 }
-// A second linked worktree at repos/beacon, a pilot repository, onboarded as the given project and scope.
-async function onboardBeacon(s, { scope = "acme", project }) {
-  const beacon = join(s.reposDir, "beacon");
-  await fixtureGit(s.repo, ["worktree", "add", "-q", "-b", "beacon-" + scope, beacon]);
-  const input = { ...s.input, scope, project, repo: await realpath(beacon), requestId: "req_beacon" + scope };
-  const plan = await planOnboard(s.roots, s.pilot, input);
-  await applyOnboard(s.roots, s.pilot, input, { fingerprint: plan.fingerprint, now });
+// A second linked worktree at repos/beacon, a pilot repository, onboarded as the given project and scope. name puts
+// it at repos/<name>, which the onboarding is given as one more pilot repository.
+async function onboardBeacon(s, { scope = "acme", project, name = "beacon" }) {
+  const beacon = join(s.reposDir, name);
+  await fixtureGit(s.repo, ["worktree", "add", "-q", "-b", name + "-" + scope, beacon]);
+  const input = { ...s.input, scope, project, repo: await realpath(beacon), requestId: "req_" + name + scope };
+  const pilot = s.pilot.repos.includes(input.repo) ? s.pilot : { ...s.pilot, repos: [...s.pilot.repos, input.repo] };
+  const plan = await planOnboard(s.roots, pilot, input);
+  await applyOnboard(s.roots, pilot, input, { fingerprint: plan.fingerprint, now });
   return input.repo;
 }
 // The three resolvers on one folder: context resolve, lesson match --cwd and the hook's session-start line. Each gives
@@ -38,11 +41,11 @@ async function onboardBeacon(s, { scope = "acme", project }) {
 async function resolvers(s, cwd, scope = "acme") {
   const context = await resolveContext(s.roots, { scope, cwd }).then((r) => r.project, (e) => e.details?.reason ?? e.code);
   const match = await runCli(["lesson", "match", "--pilot", s.path, "--scope", scope, "--cwd", cwd]);
-  const lesson = match.json.ok ? match.json.result.repo.project : match.json.error.code;
+  const lesson = match.json.ok ? match.json.result.repo.project : match.json.error.details?.reason ?? match.json.error.code;
   const chunks = [];
   await main(["hook", "--event", "session-start", "--agent", "claude", "--pilot", s.path], { stdout: { write: (v) => { chunks.push(v); return true; } }, stdin: JSON.stringify({ session_id: "s-linked", cwd, hook_event_name: "SessionStart", source: "startup" }), now });
   const line = JSON.parse(chunks.join("")).hookSpecificOutput.additionalContext;
-  const hook = /lessons? for ([a-z0-9.-]+)\. Scope: ([a-z0-9-]+)\./.exec(line)?.[1] ?? (line.includes("more than one scope") ? "ambiguous-scope" : "unbound");
+  const hook = /lessons? for ([a-z0-9.-]+)\. Scope: ([a-z0-9-]+)\./.exec(line)?.[1] ?? (line.includes("(ambiguous-worktree)") ? "ambiguous-worktree" : line.includes("more than one scope") ? "ambiguous-scope" : "unbound");
   return { context, lesson, hook };
 }
 async function withHooks(s) {
@@ -185,7 +188,7 @@ test("linked worktree: the hooks, lesson match and context resolve agree on the 
   await mkdir(other);
   await fixtureGit(other, ["init", "-q", "-b", "main"]);
   await fixtureGit(other, ["commit", "-q", "--allow-empty", "-m", "other"]);
-  assert.deepEqual(await resolvers(s, await realpath(other)), { context: "not-bound-in-scope", lesson: "DEVTWIN_PROJECT_UNBOUND", hook: "unbound" });
+  assert.deepEqual(await resolvers(s, await realpath(other)), { context: "not-bound-in-scope", lesson: "not-bound-in-scope", hook: "unbound" });
 });
 
 test("linked worktree: a main entry and linked entries of one project resolve; two projects on one common dir are ambiguous", async (t) => {
@@ -200,7 +203,8 @@ test("linked worktree: a main entry and linked entries of one project resolve; t
   const two = await bound(t);
   const other = await onboardBeacon(two, { project: "acme.beacon" });
   await withHooks(two);
-  assert.deepEqual(await resolvers(two, two.linked), { context: "ambiguous-worktree", lesson: "DEVTWIN_PROJECT_UNBOUND", hook: "unbound" });
+  // K1 round 5: the hook refuses with the same reason as context resolve and lesson match.
+  assert.deepEqual(await resolvers(two, two.linked), { context: "ambiguous-worktree", lesson: "ambiguous-worktree", hook: "ambiguous-worktree" });
   assert.equal((await resolveContext(two.roots, { scope: "acme", cwd: two.repo })).project, "acme.atlas");
   assert.equal((await resolveContext(two.roots, { scope: "acme", cwd: other })).project, "acme.beacon");
 });
@@ -211,8 +215,35 @@ test("linked worktree: a common dir bound in two scopes resolves per requested s
   await onboardBeacon(s, { scope: "globex", project: "globex.beacon" });
   await withHooks(s);
   // context resolve and lesson match read only the requested scope; the hook has no scope and fails closed.
-  assert.deepEqual(await resolvers(s, s.linked, "acme"), { context: "acme.atlas", lesson: "acme.atlas", hook: "ambiguous-scope" });
-  assert.deepEqual(await resolvers(s, s.linked, "globex"), { context: "globex.beacon", lesson: "globex.beacon", hook: "ambiguous-scope" });
+  assert.deepEqual(await resolvers(s, s.linked, "acme"), { context: "acme.atlas", lesson: "acme.atlas", hook: "ambiguous-worktree" });
+  assert.deepEqual(await resolvers(s, s.linked, "globex"), { context: "globex.beacon", lesson: "globex.beacon", hook: "ambiguous-worktree" });
+});
+
+// K1 round 5 (Codex final review, major 1): an ambiguous scope must not drop out of the hook's lookup. Scope acme has
+// two projects on one Git common directory and scope globex has one project on the same directory. Before, the hook
+// skipped acme as "no match" and gave the linked worktree globex's lessons.
+test("linked worktree: same-scope ambiguity plus a second matching scope is refused by every resolver; an exact bound root still wins", async (t) => {
+  const s = await bound(t);
+  const beacon = await onboardBeacon(s, { project: "acme.beacon" });
+  await withHooks(s);
+  // Same-scope ambiguity alone: the linked worktree is refused with one reason, and each bound root resolves exactly.
+  const REFUSED = { context: "ambiguous-worktree", lesson: "ambiguous-worktree", hook: "ambiguous-worktree" };
+  assert.deepEqual(await resolvers(s, s.linked), REFUSED);
+  assert.deepEqual(await resolvers(s, s.repo), { context: "acme.atlas", lesson: "acme.atlas", hook: "acme.atlas" });
+  assert.deepEqual(await resolvers(s, beacon), { context: "acme.beacon", lesson: "acme.beacon", hook: "acme.beacon" });
+  // A second scope with one project on the same common directory.
+  await applyScopeAdd(s.roots, { scope: "globex", hubs: [], policies: [], now });
+  await onboardBeacon(s, { scope: "globex", project: "globex.comet", name: "comet" });
+  await withHooks(s);
+  assert.deepEqual(await resolvers(s, s.linked, "acme"), REFUSED);
+  // The requested scope globex names one project, so context resolve and lesson match give it; the hook, which has no
+  // scope, still refuses.
+  assert.deepEqual(await resolvers(s, s.linked, "globex"), { context: "globex.comet", lesson: "globex.comet", hook: "ambiguous-worktree" });
+  // An exact bound root of acme still resolves in acme; the hook refuses it, because globex matches it too.
+  assert.deepEqual(await resolvers(s, s.repo, "acme"), { context: "acme.atlas", lesson: "acme.atlas", hook: "ambiguous-worktree" });
+  // The hook logs the reason.
+  const log = (await readFile(hookLogPath(s.stateRoot), "utf8").catch(() => "")).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l));
+  assert.ok(log.some((e) => e.code === "ambiguous-worktree"), JSON.stringify(log));
 });
 
 test("linked worktree: the brief checks source freshness in the selected worktree, and portable export stays fenced", async (t) => {

@@ -11,7 +11,7 @@ import { matchWorktree, readCommonDir } from "../lessons/index.mjs";
 // worktree (worktree.linked). The common directory counts only when the .git entry proves it without Git
 // (readCommonDir): a folder with a forged .git file or its own fake gitdir never resolves. Only the requested
 // scope's roots count, as for lesson match; the hooks, which have no scope, turn lessons off when roots of two scopes
-// match. Nothing here widens what the hooks already read.
+// match or when any one scope is ambiguous. Nothing here widens what the hooks already read.
 const unbound = (reason) => new DevtwinError("PROJECT_UNBOUND", "Worktree not bound in selected scope", { reason });
 export async function resolveContext(roots, { scope, cwd }) {
   let canonical;

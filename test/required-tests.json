@@ -1011,6 +1011,7 @@
   "start line: fitLine shortens, then drops, the optional parts from the highest rank down and keeps rank 0",
   "start line: the worst case keeps the start line within 400 bytes and the whole output within 1,600",
   "start line: the not-verified line with a 120-character kit path keeps its full verify command within 400 bytes",
+  "start line: the not-verified line stays within 400 bytes for long and multibyte paths, and keeps the full verify command whenever it fits",
   "command form: a radar guide and a digest note give the full executable form",
   "command form: the owner-action block denies owner actions in the node form for every adapter and allows agent routes",
   "linked worktree: context resolve gives the bound project with the worktree's own root, branch and head",
@@ -1019,5 +1020,6 @@
   "linked worktree: the hooks, lesson match and context resolve agree on the same fixtures",
   "linked worktree: a main entry and linked entries of one project resolve; two projects on one common dir are ambiguous",
   "linked worktree: a common dir bound in two scopes resolves per requested scope, and the hooks turn lessons off",
+  "linked worktree: same-scope ambiguity plus a second matching scope is refused by every resolver; an exact bound root still wins",
   "linked worktree: the brief checks source freshness in the selected worktree, and portable export stays fenced"
 ]

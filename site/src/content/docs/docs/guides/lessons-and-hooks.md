@@ -169,7 +169,7 @@ The line always keeps the project, the lesson count, the scope and the session I
 4. The paths note. The short form is "Paths confirmed over 90 days ago." or "Kit or config changed." "Kit and config confirmed." has no short form.
 5. The kit path.
 
-With a kit path of 120 characters, the kit path still fits at the longest scope and project IDs. A part that is left out is still available elsewhere. Your instruction block names the command form, and `lesson notices`, `hook verify` and the brief give the full view. When the line has no kit path, the skills use `DEVTWIN_KIT`. The `kit not verified` line keeps its full `hook verify` command, so its kit path part goes first.
+With a kit path of 120 characters, the kit path still fits at the longest scope and project IDs. A part that is left out is still available elsewhere. Your instruction block names the command form, and `lesson notices`, `hook verify` and the brief give the full view. When the line has no kit path, the skills use `DEVTWIN_KIT`. The `kit not verified` line keeps its full `hook verify` command when it fits, so its kit path part goes first. With very long or multibyte kit and pilot paths, the line gives `devtwin hook verify` with the pointer to your instruction block, which names both paths in full.
 
 ### Where the last session stopped
 
