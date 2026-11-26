@@ -26,7 +26,8 @@ async function freshness(record, binding, worktree) {
   for (const source of record.sources) if (source.ref.startsWith("file:")) {
     const rel = source.ref.slice(5);
     if (!binding.approvedSources.some((x) => x.rel === rel)) return "unbound-source";
-    const state = await checkSourceFreshness(binding.roots[0].path, { rel, sha256: source.sha256 });
+    // K1: the selected worktree, which can be a linked worktree of the bound repository, not the first bound root.
+    const state = await checkSourceFreshness(worktree.root, { rel, sha256: source.sha256 });
     if (state === "source-missing") return state;
     if (state !== "current") outcome = state;
   }

@@ -78,7 +78,7 @@ Each call prints one JSON line: `{"ok": true, "command": ..., "result": ...}` or
 - `STALE_VERSION`: the registry changed. Preview again and ask again.
 - `CONFLICT`: the request ID was reused with different inputs, or a blocking conflict was found. Show it and ask.
 - `BINDING_CONFLICT`: the worktree or project is bound elsewhere. Stop and ask.
-- `PROJECT_UNBOUND`: read `reason` and `remedy`. Tell the user what they say.
+- `PROJECT_UNBOUND`: read `reason`. Tell the user what it says.
 - `GATE_REQUIRED`: a pilot guard refused the call. With the live config, that includes a kit at `<kit>` that is not the live config's pinned kit commit. Stop and ask.
 - `GIT_QUERY_FAILED`: a Git query failed unexpectedly. Stop and ask. Do not retry around it.
 - `RECOVERY_REQUIRED`: stored state is incomplete or damaged. Show `remedy` if present, then stop and ask. Use `--keep-previous` only if the user chooses it.

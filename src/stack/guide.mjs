@@ -10,6 +10,7 @@ import { finalizePlan, assertFingerprint } from "../storage/plan.mjs";
 import { withPilotLock } from "../storage/lock.mjs";
 import { plainText } from "./feed.mjs";
 import { radarItemsPath } from "./digest.mjs";
+import { commandContext, commandFor, quote } from "../agents/command-form.mjs";
 
 const ID = /^[0-9a-f]{12}$/;
 const KIND_LABELS = { release: "a release in your stack", "agent-tools": "an agent tool or skill", approaches: "an approach or design idea", adjacent: "adjacent tech to try" };
@@ -24,7 +25,12 @@ async function readItems(roots, scope) {
   if (!value || value.schemaVersion !== 1 || value.kind !== "radar-items" || value.scope !== scope || !Array.isArray(value.items)) throw new DevtwinError("INTEGRITY", "Radar items invalid");
   return value;
 }
-export function renderGuide(item, { scope, digestDate }) {
+// K1: the lesson propose command is the full executable form (src/agents/command-form.mjs), so it runs as written. It
+// has every flag that a write needs, with --apply. Each placeholder is single-quoted, so a copied command that keeps
+// one cannot redirect the shell; the note under it says to replace them.
+export const PROPOSE = (scope) => "lesson propose --scope " + quote(scope ?? "<scope>") + " --session '<session ID>' --title '<what you learned>' --summary '<one do or do not line>' --body-file '<notes.md>' --topic '<tool name>' --apply";
+export const PLACEHOLDER_NOTE = "Replace each value in angle brackets with your own before you run it. The session ID is in the devtwin hook's session-start line.";
+export function renderGuide(item, { scope, digestDate, context }) {
   const links = [safeUrl(item.link) ? "- Entry: " + safeUrl(item.link) : null, safeUrl(item.sourceUrl) ? "- Source: " + safeUrl(item.sourceUrl) : null].filter(Boolean);
   return [
     "# Try " + code(item.label), "",
@@ -42,23 +48,24 @@ export function renderGuide(item, { scope, digestDate }) {
     "## Keep what you learned", "",
     "If the result is worth keeping, propose it as a lesson. The lesson goes through the usual review:", "",
     "```sh",
-    "devtwin lesson propose --scope <scope> --session <session> --title \"<what you learned>\" --body-file <notes.md>",
-    "```", ""
+    commandFor(PROPOSE(scope), context),
+    "```", "",
+    PLACEHOLDER_NOTE, ""
   ].join("\n");
 }
 // The guide preview; --apply writes it once under the data root. A second apply of the same guide changes nothing.
-export async function planGuide(roots, { scope = null, id }) {
+export async function planGuide(roots, { scope = null, id }, { kitRoot } = {}) {
   if (scope !== null) assertScopeId(scope);
   if (typeof id !== "string" || !ID.test(id)) throw new DevtwinError("INVALID_INPUT", "Invalid radar item ID", { field: "item" });
   const items = await readItems(roots, scope);
   const item = items.items.find((i) => i.id === id);
   if (!item) throw new DevtwinError("NOT_FOUND", "Item is not in the latest digest", { item: id });
-  const markdown = renderGuide(item, { scope, digestDate: items.date });
+  const markdown = renderGuide(item, { scope, digestDate: items.date, context: commandContext(roots.pilot, kitRoot) });
   const destination = { root: "dataRoot", path: [...guideSegments(scope), "guide-" + id + ".md"].join("/") };
   return finalizePlan({ kind: "radar-guide", scope, item: id, destination, markdown, markdownHash: sha256(markdown), source: digest(item) });
 }
-export async function applyGuide(roots, input, { fingerprint }) {
-  const plan = await planGuide(roots, input);
+export async function applyGuide(roots, input, { fingerprint, kitRoot }) {
+  const plan = await planGuide(roots, input, { kitRoot });
   assertFingerprint(plan, fingerprint);
   const path = join(roots.dataRoot, ...plan.destination.path.split("/"));
   if (info(path)) {

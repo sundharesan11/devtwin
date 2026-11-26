@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -10,6 +10,9 @@ import { applyScopeAdd } from "../src/config/store.mjs";
 import { planProfile, applyProfile } from "../src/profile/store.mjs";
 import { checkMarkdown } from "../src/writing/ste.mjs";
 import { selectAlerts, ALERTS_PER_DAY, parseInterests, RANK } from "../src/stack/rank.mjs";
+import { commandFor } from "../src/agents/command-form.mjs";
+import { PROPOSE, PLACEHOLDER_NOTE } from "../src/stack/guide.mjs";
+import { radarNote } from "../src/stack/digest.mjs";
 
 const fixture = (name) => readFileSync(new URL("./fixtures/stack/" + name, import.meta.url));
 const RSS = "https://changelog.example.com/feed.xml", TOOLS = "https://tools.example.org/feed.xml", IDEAS = "https://ideas.example.org/feed.xml";
@@ -109,6 +112,11 @@ test("a feed entry with instruction-like text is not copied into its guide", asy
   assert.match(guide.markdown, /^# Try `Idea Radar`$/m);
   assert.match(guide.markdown, /<https:\/\/ideas\.example\.org\/events>/);
   assert.match(guide.markdown, /lesson propose/);
+  // K1 (review m3): the guide and the digest that the CLI renders carry the full executable form for this pilot and
+  // the running kit, with the quoted placeholders and the replace note.
+  const context = { kitRoot: realpathSync(join(import.meta.dirname, "..")), pilotPath: realpathSync(s.p.path) };
+  assert.ok(guide.markdown.includes("```sh\n" + commandFor(PROPOSE("alpha"), context) + "\n```\n\n" + PLACEHOLDER_NOTE), guide.markdown);
+  assert.ok(plan.markdown.includes(radarNote("alpha", context)), radarSection(plan.markdown));
   const written = await s.ok(["radar", "guide", "--scope", "alpha", "--item", injected.id, "--apply", "--plan-fingerprint", guide.fingerprint]);
   assert.equal(written.written, true);
   assert.deepEqual(await readdir(join(s.p.dataRoot, "scopes", "alpha", "guides", "radar")), ["guide-" + injected.id + ".md"]);

@@ -65,7 +65,7 @@ Never put secrets or credentials in the title or body. The CLI refuses sensitive
 - Apply: `proposalId` and `path` of a private proposal file. It is not a record yet. The same inputs give the same proposal ID.
 - Attribution: CLI records are attributed to "human" today, whoever ran the command. It is not an identity attestation. Tell the user this.
 - `INVALID_INPUT` or `INVALID_ID`: a field, source reference or request ID is malformed. Fix it with the user.
-- `PROJECT_UNBOUND`: the project is not onboarded in that scope. Read `reason` and `remedy` if present, and tell the user.
+- `PROJECT_UNBOUND`: the project is not onboarded in that scope. Read `reason` if present, and tell the user.
 - `GATE_REQUIRED`: a pilot guard refused the call, for example a body file outside the inputs root. With the live config, that includes a kit at `<kit>` that is not the live config's pinned kit commit. Stop and ask.
 - `GIT_QUERY_FAILED`: a Git query failed unexpectedly. Stop and ask. Do not retry around it.
 - `RECOVERY_REQUIRED`, `INTEGRITY` or `PATH_UNSAFE`: stored state or a path needs the user's attention. Stop and ask.

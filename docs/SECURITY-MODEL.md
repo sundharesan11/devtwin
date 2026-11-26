@@ -68,6 +68,19 @@ Live mode ([Live activation](LIVE.md)) relaxes the fence for exactly the paths a
 - Cursor also reads `~/.agents/skills` and sees the installed skills. The skills keep every confirmation for any caller.
 - Onboarding copies some client repository text into the store, protected by mode 0700 and disk encryption only. Backups are encrypted, but see [Backups](#backups) for what that protects.
 
+## Worktree resolution
+
+A linked worktree shares the binding of its Git common directory. The hooks, `lesson match` and `context resolve` use one rule for this.
+
+- An exact bound root comes first.
+- Otherwise a worktree resolves to a project when its Git common directory matches the bound roots of exactly one project in the scope. The main checkout and the onboarded linked worktrees of one project count as one project.
+- When bound roots of two or more projects in the scope share the common directory, nothing resolves. `context resolve` and `lesson match` fail with `PROJECT_UNBOUND` and the reason `ambiguous-worktree`.
+- The common directory counts only when the worktree's `.git` entry proves it. A `.git` file counts only for a worktree that `git worktree add` made. Its Git folder must be in the `worktrees` folder of the common directory. Its `commondir` file must name that same common directory, and its `gitdir` file must point back at this worktree. devtwin compares real paths. A folder with a forged `.git` file never resolves. That includes a folder that holds its own fake Git folder, with a `commondir` file that names a bound repository. A forgery would need a write inside the bound repository's own `.git` folder, and such a write already controls that repository.
+- `context resolve` and `lesson match` read only the scope that the caller names. The hooks take no scope, so they fail closed. When bound roots of two scopes match, the hook turns lessons off. When any one scope is ambiguous, the hook also turns lessons off, with the reason `ambiguous-worktree`. This holds when another scope binds one project on that common directory.
+- The rule widens no fence. A linked worktree outside the pilot's repositories reads the project's records, as the hooks already did. Portable handoff export still refuses a working directory outside the pilot's repositories.
+- A task envelope comes from `context resolve` too. In a linked worktree, its `allowedOutputPaths` must be inside that worktree's own root.
+- A submodule or a `--separate-git-dir` checkout is not a linked worktree, because its Git folder has no `commondir` file. It resolves only by its exact bound root. The stop stub still reads the config in its own Git folder.
+
 ## Live-mode exceptions
 
 The approved write classes in a live config ([Live-mode exceptions](LIVE.md#live-mode-exceptions)) are the only writes outside the store and the named skill folders. They widen the fence by exact paths only.

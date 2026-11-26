@@ -14,6 +14,7 @@ An upgrade has four steps:
 2. Copy it into a kit folder with `devtwin kit install`.
 3. Pin that folder with `devtwin live set-kit`, behind an owner dialog.
 4. Move the skills, hooks, jobs and confirmed paths to the new folder with one setup batch.
+5. Apply the instruction block again, so that its command form names the new kit folder.
 
 The old kit folder stays on disk. A rollback pins it again and runs one more batch.
 
@@ -84,7 +85,16 @@ LIVE_CONFIG="$HOME/.devtwin/live.json"
    devtwin setup apply --pilot "$LIVE_CONFIG" --all-pending --apply --plan-fingerprint '<fingerprint>'
    ```
 
-10. Check the result:
+10. Preview the instruction block, then apply it in your own terminal:
+
+    ```sh
+    devtwin instructions plan --pilot "$LIVE_CONFIG"
+    devtwin instructions apply --pilot "$LIVE_CONFIG" --plan-fingerprint '<fingerprint>'
+    ```
+
+    The block names the command form with the kit folder: ``Run devtwin as `node '<kit>/bin/devtwin.mjs' <command> --pilot '<live config>'` ``. The hook hints point to that line. Until you apply the block again, it names the old kit, which the live config no longer pins, so its commands fail. A block from before this command form has no such line at all. The setup batch does not write the block.
+
+11. Check the result:
 
     ```sh
     devtwin kit list
@@ -95,17 +105,17 @@ LIVE_CONFIG="$HOME/.devtwin/live.json"
 
     `kit list` marks the new folder as pinned. Each job shows `current`, each hook entry shows `installed` and `paths check` reports `match`.
 
-11. If you set `DEVTWIN_KIT` in your shell profile, change it to the new `kitRoot`, with the owner's approval.
+12. If you set `DEVTWIN_KIT` in your shell profile, change it to the new `kitRoot`, with the owner's approval.
 
-12. In Codex, run `/hooks` and trust each changed devtwin entry. Antigravity CLI and OpenCode have no such step.
+13. In Codex, run `/hooks` and trust each changed devtwin entry. Antigravity CLI and OpenCode have no such step.
 
-The devtwin hook denies `kit install --apply`, `live set-kit --apply` and `setup apply --all-pending` from an agent shell. An agent can show you the previews, but you run each apply.
+The devtwin hook denies `kit install --apply`, `live set-kit --apply`, `setup apply --all-pending` and `instructions apply` from an agent shell. An agent can show you the previews, but you run each apply.
 
 Until the batch runs, the hook lines and job files still name the old kit. The live config no longer pins that kit, so the kit gate refuses their live commands. `schedule status` shows those jobs as `outdated`. The OpenCode plugin file names the old kit too, and `agents status` shows it as `outdated`.
 
 ## Add an agent after an upgrade
 
-A release can add support for an agent, such as Antigravity CLI or OpenCode. The upgrade does not add that agent to your live config. `setup status` shows its skills and hooks steps as skipped, with the reason "agent not in the live config". Read [Roll back after you add an agent](#roll-back-after-you-add-an-agent) first. Then add the agent after step 10 of the upgrade:
+A release can add support for an agent, such as Antigravity CLI or OpenCode. The upgrade does not add that agent to your live config. `setup status` shows its skills and hooks steps as skipped, with the reason "agent not in the live config". Read [Roll back after you add an agent](#roll-back-after-you-add-an-agent) first. Then add the agent after step 11 of the upgrade:
 
 1. Preview the change:
 
@@ -179,7 +189,9 @@ Once the live config names a package kit, a kit from before 0.1.0-alpha.1 cannot
 
 4. Run one setup batch, preview then apply, as in steps 8 and 9 of the upgrade.
 
-5. Run the checks in step 10 of the upgrade.
+5. Preview and apply the instruction block, as in step 10 of the upgrade. The block then names the earlier kit folder again.
+
+6. Run the checks in step 11 of the upgrade.
 
 The global command can be newer than the pinned kit. That is safe: it forwards live commands to the pinned kit. To make `devtwin --version` match, install the earlier version with `npm i -g devtwin@<earlier version>`.
 
@@ -212,8 +224,8 @@ For OpenCode, use `--agent opencode` in both commands, and mind these points:
 A setup made from a clone at `~/.devtwin/kit` moves to a package kit with the same steps as an upgrade:
 
 1. Install the release with `npm i -g devtwin@alpha`.
-2. Run steps 2 to 9 of the upgrade.
-3. Run the checks in step 10.
+2. Run steps 2 to 10 of the upgrade.
+3. Run the checks in step 11.
 
 The dialog shows the move from `git:<commit>` to `npm:<version>+sha256:<digest>`. The batch rewrites every hook line and job file, because they name the kit folder. It rewrites the OpenCode plugin file for the same reason.
 

@@ -205,7 +205,7 @@ devtwin radar guide --pilot "$PILOT" --scope acme --item 0123456789ab
 devtwin radar guide --pilot "$PILOT" --scope acme --item 0123456789ab --apply --plan-fingerprint '<fingerprint>'
 ```
 
-The guide is a fixed template. It holds the item's catalog name, its kind, its links and the steps to try it in a scratch folder. It never copies feed text, so an instruction in a title or summary cannot reach the guide.
+The guide is a fixed template. It holds the item's catalog name, its kind, its links and the steps to try it in a scratch folder. It never copies feed text, so an instruction in a title or summary cannot reach the guide. Its `lesson propose` command, and the `radar guide` command in the digest's radar note, name the kit and the pilot in full, so they run as written. Each placeholder in them, such as `'<item ID>'`, is in single quotes, so a copied command cannot redirect the shell. Replace each placeholder before you run the command. The `lesson propose` command has `--apply`, so it writes the proposal. Because a stored digest or guide names the kit folder, a digest that you apply again after a kit upgrade is a new file.
 
 The guide goes under `dataRoot/scopes/<scope>/guides/radar/` and creates nothing else: no sandbox, no project change. When the result is worth keeping, propose it as a lesson with [`lesson propose`](/docs/guides/lessons-and-hooks/).
 

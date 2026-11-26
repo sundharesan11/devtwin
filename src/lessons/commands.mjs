@@ -11,14 +11,15 @@ import { commandWords } from "../hooks/shell-words.mjs";
 const list = (value) => value === undefined ? [] : Array.isArray(value) ? value : [value];
 const options = { scope: { type: "string" }, cwd: { type: "string" }, path: { type: "string", multiple: true }, package: { type: "string", multiple: true }, text: { type: "string" }, command: { type: "string" }, id: { type: "string" } };
 const invalid = (field) => { throw new DevtwinError("INVALID_INPUT", "Invalid lesson match input", { field }); };
-// The worktree for --cwd, resolved through the index's path-to-scope map, as the hook does.
+// The worktree for --cwd, resolved through the index's path-to-scope map, as the hook does. Bound roots of two or more
+// projects on the worktree's Git common directory fail with the reason ambiguous-worktree, as context resolve does.
 function repoFor(index, cwd) {
   let canonical;
   try { canonical = realpathSync(cwd); } catch { throw new DevtwinError("PATH_UNSAFE", "Working directory unavailable"); }
   if (canonical !== resolve(cwd)) throw new DevtwinError("PATH_UNSAFE", "Working directory must be canonical");
   const root = findRepoRoot(canonical);
-  const repo = root && resolveRepo(index, { root, commonDir: readCommonDir(root) });
-  if (!repo) throw new DevtwinError("PROJECT_UNBOUND", "Worktree not bound in selected scope", { reason: "not-bound-in-scope" });
+  const { status, repo } = root ? resolveRepo(index, { root, commonDir: readCommonDir(root) }) : { status: "none", repo: null };
+  if (!repo) throw new DevtwinError("PROJECT_UNBOUND", "Worktree not bound in selected scope", { reason: status === "ambiguous" ? "ambiguous-worktree" : "not-bound-in-scope" });
   return { root, repo };
 }
 // An absolute --path must sit inside the --cwd worktree. Every path must stay inside the repository.

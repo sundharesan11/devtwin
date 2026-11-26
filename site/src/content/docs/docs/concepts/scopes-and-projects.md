@@ -73,16 +73,16 @@ If you want to make sure you're onboarding the repository you think you are, pas
 devtwin context resolve --pilot "$PILOT" --scope acme --cwd "$(pwd -P)"
 ```
 
-`devtwin` finds the Git worktree root that contains `--cwd`, then looks for that exact path among the scope's bindings. Any folder inside the worktree works.
+`devtwin` finds the Git worktree root that contains `--cwd`, then looks for that exact path among the scope's bindings. Any folder inside the worktree works. When no binding has that exact path, a linked worktree of a bound repository resolves through its Git common directory, as the hooks and `lesson match` do. It resolves only when the bound roots with that common directory belong to one project in the scope.
 
-On success, the result names the `project` and the `worktree` (root, branch, commit and whether it has uncommitted changes).
+On success, the result names the `project` and the `worktree` (root, branch, commit and whether it has uncommitted changes). A worktree that resolved through its common directory also has `linked: true`.
 
 When there's no match, you get `DEVTWIN_PROJECT_UNBOUND` with a reason:
 
 | `details.reason` | What it means | What to do |
 | --- | --- | --- |
-| `not-bound-in-scope` | This worktree isn't onboarded in this scope. Check the scope, or onboard it. | `project onboard --scope <scope> --repo <worktree>` |
-| `worktree-not-confirmed` | Another worktree of the same repository is onboarded, but not this one. | Onboard this worktree into the same project. |
+| `not-bound-in-scope` | No bound root in this scope matches this worktree, exactly or through its Git common directory. | Check the scope, or onboard the repository with `project onboard --scope <scope> --repo <worktree>`. |
+| `ambiguous-worktree` | Bound roots of two or more projects in this scope share this worktree's Git common directory. | Run from a bound root, or onboard this worktree into one of the projects. |
 
 Paths must be canonical. A path through a symbolic link, such as `/tmp/...` on macOS (which really lives at `/private/tmp/...`), fails with `DEVTWIN_PATH_UNSAFE`. Use `"$(pwd -P)"` or `realpath` to get the real path.
 

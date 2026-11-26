@@ -16,6 +16,7 @@ import { readIndex, rebuildDerived } from "../lessons/index.mjs";
 import { SCOPE_ID } from "../identity/ids.mjs";
 import { stableNodePath } from "../schedule/launchd.mjs";
 import { adapter, AGENT_IDS, LISTED, wholeFileHooks as wholeFile } from "./adapters/index.mjs";
+import { commandPaths } from "./command-form.mjs";
 export { CODEX_TRUST_NOTE } from "./adapters/codex.mjs";
 // U8: devtwin's hook entries in the agent settings files (KTD6, KTD7, KTD9). The only files are the approved
 // hookTargets, one per agent adapter (src/agents/adapters): <claudeDir>/settings.json, ~/.codex/hooks.json,
@@ -70,7 +71,7 @@ const FILE_EVENT = "file";
 // one place that reads it, so the expected hash and the written text come from one value. nodeLookup
 // ({ execPath, realpath, isFile }) is the test seam of the jobs; a hook plan takes it as input.nodeLookup.
 export function hookContext(pilot, kitRoot, nodeLookup) {
-  const context = { pilotPath: realpathSync(pilot.path), kitRoot: pilot.live ? pilot.live.kitRoot : realpathSync(kitRoot ?? KIT) };
+  const context = commandPaths(pilot, kitRoot ?? KIT);
   for (const path of Object.values(context)) if (UNSAFE_IN_COMMAND.test(path)) throw new DevtwinError("INVALID_INPUT", "Path cannot be quoted in a hook command", { field: "hookCommand" });
   return { ...context, nodePath: stableNodePath(nodeLookup ?? {}) };
 }

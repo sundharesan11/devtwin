@@ -166,9 +166,13 @@ test("lesson index records the linked worktree common directory and resolves it 
   assert.equal(readCommonDir(s.repo), commonDir);
   assert.equal(readCommonDir(worktree), commonDir);
   assert.equal(readCommonDir(join(s.sandbox, "missing")), null);
-  assert.deepEqual(resolveRepo(index, { root: worktree, commonDir: readCommonDir(worktree) }), { scope: SCOPE, project: PROJECT, via: "common-dir" });
-  assert.deepEqual(resolveRepo(index, { root: s.repo, commonDir }), { scope: SCOPE, project: PROJECT, via: "root" });
-  assert.equal(resolveRepo(index, { root: join(s.sandbox, "other"), commonDir: join(s.sandbox, "other/.git") }), null);
+  assert.deepEqual(resolveRepo(index, { root: worktree, commonDir: readCommonDir(worktree) }), { status: "common-dir", repo: { scope: SCOPE, project: PROJECT, via: "common-dir" } });
+  assert.deepEqual(resolveRepo(index, { root: s.repo, commonDir }), { status: "root", repo: { scope: SCOPE, project: PROJECT, via: "root" } });
+  assert.deepEqual(resolveRepo(index, { root: join(s.sandbox, "other"), commonDir: join(s.sandbox, "other/.git") }), { status: "none", repo: null });
+  // K1 round 5: an ambiguous scope stays apart from an unbound one, so the hook can refuse it.
+  const twoProjects = { ...index, roots: [...index.roots, { ...index.roots[0], root: join(s.sandbox, "beacon"), kind: "linked", project: SCOPE + ".beacon" }] };
+  assert.deepEqual(resolveRepo(twoProjects, { root: worktree, commonDir }), { status: "ambiguous", repo: null });
+  assert.equal(resolveRepo(twoProjects, { root: s.repo, commonDir }).repo.project, PROJECT, "an exact bound root still wins");
   const cli = await runCli(["lesson", "match", "--pilot", s.path, "--scope", SCOPE, "--cwd", worktree, "--path", join(worktree, "db/migrations/003.sql")]);
   assert.equal(cli.code, 0, JSON.stringify(cli.json));
   assert.deepEqual(cli.json.result.repo, { scope: SCOPE, project: PROJECT, via: "common-dir" });

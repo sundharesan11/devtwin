@@ -29,7 +29,7 @@ On success:
 On failure:
 
 ```json
-{"ok":false,"command":"context resolve","error":{"code":"DEVTWIN_PROJECT_UNBOUND","message":"Worktree not bound in selected scope","details":{"reason":"not-bound-in-scope","remedy":"project onboard --scope other --repo <worktree>"}}}
+{"ok":false,"command":"context resolve","error":{"code":"DEVTWIN_PROJECT_UNBOUND","message":"Worktree not bound in selected scope","details":{"reason":"not-bound-in-scope"}}}
 ```
 
 `error.code` always starts with `DEVTWIN_`. `details` is an object that may be empty. See [Errors](/docs/reference/errors/).
@@ -383,7 +383,7 @@ Finds the project bound to a worktree. Read-only.
 devtwin context resolve --pilot "$PILOT" --scope example --cwd "$REPO"
 ```
 
-Returns `state`, `scope`, `project`, `binding`, `worktree` (`root`, `branch`, `head`, `dirty`), `cwdRelative` and `warnings`.
+Returns `state`, `scope`, `project`, `binding`, `worktree` (`root`, `branch`, `head`, `dirty`), `cwdRelative` and `warnings`. A linked worktree of a bound repository resolves through its Git common directory when its bound roots in the scope belong to one project; its `worktree` then also has `linked: true`. Bound roots of two or more projects on that common directory fail with `DEVTWIN_PROJECT_UNBOUND` and the reason `ambiguous-worktree`.
 
 ### `context brief`
 
@@ -822,7 +822,7 @@ Lists the lessons and preferences that match a path, a package, prompt text or a
 devtwin lesson match --pilot "$PILOT" --scope example --cwd "$REPO" --path src/billing/client.js
 ```
 
-Returns `matches` (each with `id`, `matchedBy` and a `line` of at most 240 bytes), `index` (`current`, `stale`, `missing` or `invalid`) and the resolved `repo`.
+Returns `matches` (each with `id`, `matchedBy` and a `line` of at most 240 bytes), `index` (`current`, `stale`, `missing` or `invalid`) and the resolved `repo`. A `--cwd` that resolves to no project fails with `DEVTWIN_PROJECT_UNBOUND` and the reason `not-bound-in-scope`, or `ambiguous-worktree` when bound roots of two or more projects in the scope share its Git common directory.
 
 ### `lesson show`
 

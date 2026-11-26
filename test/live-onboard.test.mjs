@@ -68,7 +68,7 @@ test("live onboarding preview, apply and brief leave the client repository snaps
   assert.deepEqual(compareSnapshots(secondBefore, await snapshotRepo(f.second)), []);
   assert.equal(await treeSnapshot(f.repo), treeBefore);
 });
-test("live onboarding of a dirty worktree warns instead of refusing and the second worktree is not confirmed", async (t) => {
+test("live onboarding of a dirty worktree warns instead of refusing and the second worktree resolves as a linked worktree", async (t) => {
   const f = await liveKit(t);
   await writeFile(join(f.repo, "README.md"), "# Atlas\nBilling API, edited.\n");
   const before = await snapshotRepo(f.repo);
@@ -81,10 +81,9 @@ test("live onboarding of a dirty worktree warns instead of refusing and the seco
   assert.equal(resolved.worktree.dirty, true);
   assert.deepEqual(resolved.warnings, [{ code: "DIRTY_WORKTREE" }]);
   assert.deepEqual(ok(f.cli(["context", "brief", "--scope", "example", "--cwd", f.repo])).warnings, [{ code: "DIRTY_WORKTREE" }]);
-  const second = f.cli(["context", "resolve", "--scope", "example", "--cwd", f.second]);
-  assert.equal(second.json.ok, false);
-  assert.equal(second.json.error.code, "DEVTWIN_PROJECT_UNBOUND");
-  assert.equal(second.json.error.details.reason, "worktree-not-confirmed");
+  // K1: the second worktree is not onboarded; it shares the bound repository's Git common directory, so it resolves.
+  const second = ok(f.cli(["context", "resolve", "--scope", "example", "--cwd", f.second]));
+  assert.deepEqual([second.project, second.worktree.root, second.worktree.branch, second.worktree.linked], ["example.atlas", f.second, "main", true]);
   assert.deepEqual(compareSnapshots(before, await snapshotRepo(f.repo)), []);
 });
 test("repo snapshot detects tracked, untracked and .git changes, ignores logs and FETCH_HEAD, and never hashes ignored files", async (t) => {

@@ -158,6 +158,8 @@ Repeat for `codex`, `gemini`, `antigravity` and `opencode`. Codex, Gemini CLI an
 
 With the hooks installed, the session-start line names the pinned kit as ``Kit: `<path>` ``, and the skills run `node '<kit>/bin/devtwin.mjs'` from it. They never run a `devtwin` found on `PATH`.
 
+The instruction block names the kit and the live config once, as the command form ``node '<kit>/bin/devtwin.mjs' <command> --pilot '<live config>'``. The block and the hook hints then write a command as `devtwin <command>`, and each hook hint ends with `(command form: your devtwin instruction block)`. Agents run that form, so every command they see runs as written.
+
 `DEVTWIN_KIT` is only the fallback for a session without that line. To set it, add one line to your shell profile, for example `~/.zshrc`, and change it with each kit change:
 
 ```sh
@@ -369,14 +371,15 @@ node "$KIT/bin/devtwin.mjs" live add-repo --pilot "$LIVE_CONFIG" --repo '<repo>'
 
 ## Upgrade the kit
 
-For a package kit, an upgrade has four steps:
+For a package kit, an upgrade has five steps:
 
 1. Install the new release with `npm i -g devtwin@alpha`.
 2. Run `devtwin kit install`, compare the digest with the GitHub release, then run it again with `--apply`.
 3. Pin the new folder with `devtwin live set-kit --pilot "$LIVE_CONFIG" --kit '<version>+<digest>'`, preview then apply. The apply shows the owner dialog "Change the kit devtwin runs", with both kit IDs and the digest to compare.
 4. Run one setup batch, `setup plan --all-pending` and then `setup apply --all-pending --apply`, to move the skills, hooks, jobs and confirmed paths to the new folder.
+5. Run `instructions plan`, then `instructions apply` in your own terminal. The instruction block names the kit folder in its command form, and the setup batch does not write the block.
 
-A rollback is `live set-kit` to an earlier folder from `devtwin kit list`, then one batch. An earlier kit must know every agent in the live config. The [upgrade guide](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md) has every command, the provenance check, the nvm notes and the move from a Git clone to a package kit.
+A rollback is `live set-kit` to an earlier folder from `devtwin kit list`, then one batch and the instruction block again. An earlier kit must know every agent in the live config. The [upgrade guide](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md) has every command, the provenance check, the nvm notes and the move from a Git clone to a package kit.
 
 ### Upgrade a Git clone
 
@@ -402,6 +405,7 @@ Upgrade side by side, so the old clone keeps working until the new one is proven
    Or run the steps one at a time: preview `agents install` for each agent (changed skills show `update`), then `agents install --hooks` and `paths confirm`. Each one asks on its own.
 4. If you set `DEVTWIN_KIT`, point it at the new clone.
 5. If you ran the steps one at a time, run `paths confirm` from the new clone last, preview first. The new kit path ends the old confirmation.
+6. Preview the instruction block with `instructions plan` from the new clone, then run `instructions apply` in your own terminal. The block's command form names the kit clone.
 
 Installed skills stay owned across a kit change. Don't move or rename a clone after `live set-kit`. To go back, run `live set-kit` from the old clone with its commit.
 

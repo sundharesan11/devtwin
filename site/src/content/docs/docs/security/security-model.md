@@ -24,6 +24,18 @@ Every stateful command takes a pilot file that lists the only places it may writ
 
 The fence controls what **this CLI** writes. It does not limit what your agent host can read, write or run.
 
+## Linked worktrees
+
+A linked worktree shares the binding of its Git common directory. The hooks, `lesson match` and `context resolve` use the same rule:
+
+- An exact bound root comes first.
+- Otherwise a worktree resolves when its Git common directory matches the bound roots of exactly one project in the scope. Two or more projects on one common directory resolve to nothing, with the reason `ambiguous-worktree`.
+- The common directory counts only for a worktree that `git worktree add` made. Its Git folder must be in the `worktrees` folder of the common directory, its `commondir` file must name that directory and its `gitdir` file must point back at the worktree. A folder with a forged `.git` file never resolves, also when it holds its own fake Git folder.
+- `context resolve` and `lesson match` read only the scope you name. The hooks turn lessons off when bound roots of two scopes match. They also turn lessons off when any one scope is ambiguous, with the reason `ambiguous-worktree`, even when another scope binds one project on that common directory.
+- Portable handoff export still refuses a working directory outside the pilot's repositories.
+- A task envelope in a linked worktree allows output paths only inside that worktree.
+- A submodule or a `--separate-git-dir` checkout is not a linked worktree. It resolves only by its exact bound root.
+
 ## Live mode
 
 [Live mode](/docs/guides/live-mode/) relaxes the fence for exactly the paths the live config names.

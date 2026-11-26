@@ -1,4 +1,4 @@
-import { join, dirname, resolve } from "node:path";
+import { join, dirname, resolve, basename } from "node:path";
 import { readFileSync, realpathSync } from "node:fs";
 import { DevtwinError } from "../errors.mjs";
 import { assertWritable } from "../config/pilot.mjs";
@@ -175,7 +175,16 @@ export async function findLesson(roots, scope, id, options = {}) {
 }
 // The Git common directory for a worktree root, read from its .git entry without running Git. A main worktree's
 // .git is the directory itself. A linked worktree's .git file names its gitdir, whose commondir file names the
-// shared directory. Any surprise gives null; callers fail open.
+// shared directory. K1: a .git file counts only for a real linked worktree, one that git worktree add made: its gitdir
+// has a commondir file, and its gitdir file points back at this root's .git. A folder with a forged .git file that
+// names another repository's Git folder gives null. K1 rounds 3 and 4: the gitdir must also sit directly in the
+// worktrees folder of the common directory, its commondir file must name that directory, and its gitdir file must
+// name this folder's .git, each by real path. So a folder that holds its own fake gitdir (a commondir file naming a
+// bound repository and a back-link to itself) gives null, and so does a folder whose .git names another worktree's
+// gitdir. This is the one check for the hooks, lesson match and context resolve. Forging then needs a write inside the bound
+// repository's own .git, which already means control of that repository. Any surprise gives null, so the root can
+// match only exactly.
+const smallFile = (path) => { const node = info(path); return Boolean(node?.isFile() && node.size <= 4096); };
 export function readCommonDir(root) {
   try {
     const dotGit = join(root, ".git"), node = info(dotGit);
@@ -185,10 +194,15 @@ export function readCommonDir(root) {
     const match = /^gitdir: (.+?)\r?\n?$/.exec(readFileSync(dotGit, "utf8"));
     if (!match) return null;
     const gitDir = resolve(root, match[1]);
-    const common = info(join(gitDir, "commondir"));
-    if (!common) return realpathSync(gitDir);
-    if (!common.isFile() || common.size > 4096) return null;
-    return realpathSync(resolve(gitDir, readFileSync(join(gitDir, "commondir"), "utf8").trim()));
+    if (!smallFile(join(gitDir, "commondir")) || !smallFile(join(gitDir, "gitdir"))) return null;
+    // 1. Place: the gitdir is a folder directly in <common>/worktrees, which fixes the common directory.
+    const admin = realpathSync(gitDir), worktrees = dirname(admin), common = dirname(worktrees);
+    if (basename(worktrees) !== "worktrees") return null;
+    // 2. The commondir file names that same common directory, by real path.
+    if (realpathSync(resolve(admin, readFileSync(join(admin, "commondir"), "utf8").trim())) !== common) return null;
+    // 3. The gitdir file (the back-pointer) names this folder's .git file, by real path.
+    if (realpathSync(resolve(admin, readFileSync(join(admin, "gitdir"), "utf8").trim())) !== realpathSync(dotGit)) return null;
+    return common;
   } catch { return null; }
 }
 // The nearest folder at or above a canonical path that has a .git entry, or null.
@@ -198,10 +212,23 @@ export function findRepoRoot(path) {
     if (dirname(at) === at) return null;
   }
 }
-// Path-to-scope lookup (KTD6): an exact bound root first, then a linked worktree through its common directory.
+// K1 (KTD6): the one worktree rule of the hooks, lesson match and context resolve. entries are the bound roots of one
+// scope, as { root, commonDir, project }. An exact bound root comes first. Otherwise a worktree resolves through its
+// Git common directory (readCommonDir, or the common directory Git reports when it equals that) when the entries
+// with that directory name exactly one project: a main entry and linked entries of one project are one match.
+// Entries of two or more projects give "ambiguous", which every caller refuses (fail closed for isolation).
+export function matchWorktree(entries, { root, commonDir }) {
+  const exact = entries.find((e) => e.root === root);
+  if (exact) return { status: "root", entry: exact };
+  const shared = commonDir ? entries.filter((e) => e.commonDir === commonDir) : [];
+  if (new Set(shared.map((e) => e.project)).size > 1) return { status: "ambiguous" };
+  return shared.length ? { status: "common-dir", entry: shared[0] } : { status: "none" };
+}
+// Path-to-scope lookup (KTD6) for one scope's index: { status, repo }. status is the status of the rule above; repo
+// is { scope, project, via } for "root" and "common-dir", and null for "none" and "ambiguous". K1 round 5: the result
+// keeps "ambiguous" apart from "none", so no caller can read an ambiguous scope as an unbound one and go on to the
+// next scope.
 export function resolveRepo(index, { root, commonDir }) {
-  const exact = index.roots.find((r) => r.root === root);
-  if (exact) return { scope: exact.scope, project: exact.project, via: "root" };
-  const shared = commonDir ? index.roots.find((r) => r.commonDir === commonDir) : null;
-  return shared ? { scope: shared.scope, project: shared.project, via: "common-dir" } : null;
+  const match = matchWorktree(index.roots, { root, commonDir });
+  return { status: match.status, repo: match.entry ? { scope: match.entry.scope, project: match.entry.project, via: match.status } : null };
 }

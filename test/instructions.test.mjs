@@ -56,7 +56,9 @@ test("the rendered block holds the conflict-stop, guidance-only, one-new-format 
   assert.match(text, /stop before the change/);
   assert.match(text, /guidance about approach/);
   assert.match(text, /one new output format/);
-  assert.match(text, /lesson match --pilot "\/p\/live\.json"/);
+  // K1: the block defines the command form once, with both paths; the rules write the compact form.
+  assert.ok(text.includes("Run devtwin as `node '/kit/bin/devtwin.mjs' <command> --pilot '/p/live.json'`, written here as `devtwin <command>`."), text);
+  assert.match(text, /`devtwin lesson match --scope <scope> --cwd <worktree> --path <file>`/);
   assert.ok(text.length <= BLOCK_CHARS);
 });
 
@@ -83,7 +85,8 @@ test("text outside the markers round-trips byte for byte, and remove takes only 
 
 test("a block over the cap leaves out the oldest preferences and warns", async (t) => {
   const s = await setup(t);
-  for (let n = 1; n <= 12; n++) await s.pref(n, "Rule number " + n + " keeps a fairly long sentence here so that the block fills up after a few of them.");
+  // K1: the command-form line names the sandbox's long kit and pilot paths, so short rules fill the rest of the cap.
+  for (let n = 1; n <= 12; n++) await s.pref(n, "Keep rule " + n + " short.");
   const plan = await s.ok(["instructions", "plan"]);
   assert.ok(plan.chars <= BLOCK_CHARS);
   assert.equal(plan.warnings[0].code, "PREFERENCES_DROPPED");
@@ -96,10 +99,12 @@ test("a block over the cap leaves out the oldest preferences and warns", async (
 
 test("a block that fills the cap exactly is kept whole", () => {
   const context = { kitRoot: "/kit", pilotPath: "/p/live.json" };
-  const base = renderBlock([{ id: "rec_a", title: "T", text: "x" }], context).text.length;
+  // K1 round 3: the cap counts the block without the two paths of its command-form line (chars).
+  const base = renderBlock([{ id: "rec_a", title: "T", text: "x" }], context).chars;
   const exact = { id: "rec_a", title: "T", text: "x".repeat(1 + BLOCK_CHARS - base) };
   const fit = renderBlock([exact], context);
-  assert.equal(fit.text.length, BLOCK_CHARS);
+  assert.equal(fit.chars, BLOCK_CHARS);
+  assert.equal(fit.text.length, BLOCK_CHARS + "/kit".length + "/p/live.json".length);
   assert.deepEqual(fit.dropped, []);
   assert.deepEqual(renderBlock([{ ...exact, text: exact.text + "x" }], context).dropped.map((d) => d.id), ["rec_a"]);
 });

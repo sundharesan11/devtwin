@@ -25,8 +25,8 @@ const KIT = realpathSync(join(import.meta.dirname, "..")), BIN = join(KIT, "bin/
 const OWNER_COMMAND = 'node "/opt/example-kit/bin/devtwin.mjs" live set-kit --pilot /x/live.json --kit /x/kit --apply --plan-fingerprint sha256:00';
 const FILE = "db/migrations/002_users.sql", OTHER = "src/ui/button.tsx";
 const ALL = { paths: ["db/migrations/**"], commands: ["npm run seed"], topics: ["migrations"] };
-const HEAD = NOTICE + " Load one with `devtwin lesson show --scope " + SCOPE + " --id <id>`.";
-const more = (n) => n + (n === 1 ? " more lesson matches" : " more lessons match") + "; run `devtwin lesson match`";
+const HEAD = NOTICE + " Load one with `devtwin lesson show --scope " + SCOPE + " --id <id>` (command form: your devtwin instruction block).";
+const more = (n) => n + (n === 1 ? " more lesson matches" : " more lessons match") + "; run `devtwin lesson match` (command form: your devtwin instruction block).";
 // A bound project with one lesson per [title, match] pair, built as test/agent-adapters.test.mjs builds its Gemini
 // lesson fixture. line(id) is the index line the hook prints for a lesson.
 async function store(t, { receipt = true, lessons = [["Migrations before seeds", ALL]] } = {}) {
@@ -55,8 +55,10 @@ function bin(s, agent, event, body, { pilot = s.path } = {}) {
   return { code: r.status, out: r.stdout, err: r.stderr };
 }
 const jsonLines = async (path) => { try { return (await readFile(path, "utf8")).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l)); } catch (error) { if (error.code === "ENOENT") return []; throw error; } };
-const notVerified = (s, problem) => "devtwin hook: kit not verified (" + problem + "); run `node '" + KIT + "/bin/devtwin.mjs' hook verify --pilot '" + realpathSync(s.path) + "'`. Lessons are off. Kit: `" + KIT + "`.";
-const liveLine = (agent, session, count = 1) => "devtwin hook live: " + count + " lesson" + (count === 1 ? "" : "s") + " for " + PROJECT + ". Index lines arrive when work matches. Kit: `" + KIT + "`. Session ID for lesson propose: " + sessionTag(sessionKey(agent, session)) + ".";
+// The Kit part repeats the kit path of the verify command, so it goes when the line passes 400 bytes (fitLine).
+const fitKit = (line) => Buffer.byteLength(line + " Kit: `" + KIT + "`.") <= 400 ? line + " Kit: `" + KIT + "`." : line;
+const notVerified = (s, problem) => fitKit("devtwin hook: kit not verified (" + problem + "); run `node '" + KIT + "/bin/devtwin.mjs' hook verify --pilot '" + realpathSync(s.path) + "'`. Lessons are off.");
+const liveLine = (agent, session, count = 1) => "devtwin hook live: " + count + " lesson" + (count === 1 ? "" : "s") + " for " + PROJECT + ". Scope: " + SCOPE + ". Index lines arrive when work matches. Kit: `" + KIT + "`. Session ID for lesson propose: " + sessionTag(sessionKey(agent, session)) + ".";
 
 // What Claude Code, Codex and Gemini CLI send and read. The stdout strings are written out here, not built by the
 // adapters, so a change to any byte fails.
