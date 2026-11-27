@@ -73,7 +73,7 @@ Items follow the [roadmap](ROADMAP.md) order.
 - [ ] Session start and end hooks that carry context into and out of a session. Partly implemented: the agent hook gives the session summary and lessons, and the stop stub asks for a handoff. The resume and handoff adapters remain.
 - [ ] Reviewed selective migration from an existing personal setup.
 - [ ] Recovery tests for interrupted writes and documented operator actions.
-- [ ] Separate compatibility evidence for each additional agent host.
+- [ ] Separate compatibility evidence for each additional agent host. Real sessions checked Antigravity CLI 1.5 and OpenCode 2.3.0 in disposable setups. Gemini CLI has no real-session check yet.
 
 Live connectors, company-hub distribution, skill export and a weekly skill updater require their own authorization and verification. They need not ship before an offline daily-use release, but they must not be implied. The open-source release comes after them in the roadmap.
 

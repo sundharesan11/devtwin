@@ -18,16 +18,18 @@ const clock = (hours = 0) => () => new Date(now().getTime() + hours * 3600000);
 async function machine(t) {
   const p = await initPilot(t);
   await applyScopeAdd(p.roots, { scope: "example", hubs: [], policies: [], now });
+  // A fake notifier: a held item must never open a real desktop notification during a test run.
+  const notes = [];
   const run = async (args, hours = 0) => {
     const chunks = [];
-    await main([...args, "--pilot", p.path], { home: p.fakeHome, env: {}, now: clock(hours), ownerDialog: async () => "approved", stdout: { write: (x) => chunks.push(x) } });
+    await main([...args, "--pilot", p.path], { home: p.fakeHome, env: {}, now: clock(hours), ownerDialog: async () => "approved", notifier: (a) => { notes.push(a); return { status: 0 }; }, stdout: { write: (x) => chunks.push(x) } });
     return JSON.parse(chunks.join(""));
   };
   const ok = async (args, hours) => { const x = await run(args, hours); assert.equal(x.ok, true, JSON.stringify(x.error)); return x.result; };
   const fail = async (args, code) => { const x = await run(args); assert.equal(x.error?.code, code); };
   const apply = async (args) => { const plan = await ok(args); return ok([...args, "--apply", "--plan-fingerprint", plan.fingerprint]); };
   const propose = async (title = "Retry sample job", session = "ses_example") => (await ok(["lesson", "propose", "--scope", "example", "--session", session, "--title", title, "--summary", "Do retry the sample job.", "--body", "The job can fail once.\n", "--topic", "jobs", "--apply"])).proposalId;
-  return { p, run, ok, fail, apply, propose };
+  return { p, run, ok, fail, apply, propose, notes };
 }
 
 test("server binding requires a client, is owner-only, and appears in status", async (t) => {
@@ -106,6 +108,7 @@ test("server lesson needs consent, waits, exposes exact client payload, and reco
   assert.equal((await m.ok(["server", "record", "--id", held.id, "--learning-id", "learn_123"], 2)).learningId, "learn_123");
   await m.fail(["server", "record", "--id", held.id, "--learning-id", "learn_wrong"], "DEVTWIN_CONFLICT");
   const next = await m.apply(["lesson", "accept", "--id", await m.propose("Use sample queue", "ses_next"), "--target", "server"]);
+  assert.ok(m.notes.some((a) => a.join("\n").includes("Held for server:example: Use sample queue.")), "the held item notification goes to the injected notifier");
   const duplicate = await m.run(["server", "record", "--id", next.server.heldId, "--learning-id", "learn_123"], 2);
   assert.equal(duplicate.error.code, "DEVTWIN_CONFLICT");
 });

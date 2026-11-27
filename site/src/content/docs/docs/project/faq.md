@@ -9,7 +9,7 @@ A local CLI that keeps private, source-linked project context (decisions, facts,
 
 ## How is it different from `AGENTS.md`, `CLAUDE.md` or my agent's built-in memory?
 
-Repository instruction files are shared with everyone who can read the repository. Built-in memory belongs to one agent product. devtwin is private to you, works across Claude Code and Codex, and keeps each organization's context in its own scope. They work well together. See [How devtwin compares](/docs/concepts/comparison/).
+Repository instruction files are shared with everyone who can read the repository. Built-in memory belongs to one agent product. devtwin is private to you, works across Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode, and keeps each organization's context in its own scope. They work well together. See [How devtwin compares](/docs/concepts/comparison/).
 
 ## Does it send my code or context anywhere?
 
@@ -23,7 +23,7 @@ Not to your working copy, index or current branch. Onboarding reads a few files 
 
 ## Which agents does it work with?
 
-Claude Code and Codex, through the [bundled skills](/docs/guides/coding-agents/). You can also use it with any agent by running `devtwin context brief` and pasting the result.
+Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode, through the [bundled skills](/docs/guides/coding-agents/) and the agent hook. You can also use it with any agent by running `devtwin context brief` and pasting the result.
 
 ## Do I need an API key, an account or a database?
 
@@ -31,7 +31,7 @@ No. You need Git and Node.js 22.13 or later. Everything else is files on your di
 
 ## Is it on npm?
 
-Yes. Install it with `npm i -g devtwin`. Contributors can also run it from a Git clone. See [Installation](/docs/getting-started/installation/).
+Yes. Install it with `npm i -g devtwin`, and upgrade with `npm i -g devtwin@alpha`. Contributors can also run it from a Git clone. See [Installation](/docs/getting-started/installation/).
 
 ## Does it run on Linux or Windows?
 

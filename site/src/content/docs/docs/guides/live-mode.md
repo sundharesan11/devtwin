@@ -371,15 +371,16 @@ node "$KIT/bin/devtwin.mjs" live add-repo --pilot "$LIVE_CONFIG" --repo '<repo>'
 
 ## Upgrade the kit
 
-For a package kit, an upgrade has five steps:
+For a package kit, an upgrade has six steps:
 
 1. Install the new release with `npm i -g devtwin@alpha`.
 2. Run `devtwin kit install`, compare the digest with the GitHub release, then run it again with `--apply`.
 3. Pin the new folder with `devtwin live set-kit --pilot "$LIVE_CONFIG" --kit '<version>+<digest>'`, preview then apply. The apply shows the owner dialog "Change the kit devtwin runs", with both kit IDs and the digest to compare.
 4. Run one setup batch, `setup plan --all-pending` and then `setup apply --all-pending --apply`, to move the skills, hooks, jobs and confirmed paths to the new folder.
 5. Run `instructions plan`, then `instructions apply` in your own terminal. The instruction block names the kit folder in its command form, and the setup batch does not write the block.
+6. In Codex, run `/hooks` and trust each changed devtwin entry. Antigravity CLI and OpenCode have no such step.
 
-A rollback is `live set-kit` to an earlier folder from `devtwin kit list`, then one batch and the instruction block again. An earlier kit must know every agent in the live config. The [upgrade guide](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md) has every command, the provenance check, the nvm notes and the move from a Git clone to a package kit.
+When you upgrade from 0.1.0-alpha.2, steps 5 and 6 are required: the old block has no command form, and each Codex hook entry changes. A rollback is `live set-kit` to an earlier folder from `devtwin kit list`, then one batch and the instruction block again. An earlier kit must know every agent in the live config. The [upgrade guide](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md) has every command, the provenance check, the nvm notes and the move from a Git clone to a package kit.
 
 ### Upgrade a Git clone
 

@@ -1,7 +1,7 @@
 {
   "name": "devtwin",
-  "version": "0.1.0-alpha.2",
-  "description": "Project context, decisions and handoffs for Claude Code and Codex, kept private and delivered to every new coding-agent session.",
+  "version": "0.1.0-alpha.3",
+  "description": "Project context, decisions and handoffs for Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode, kept private and delivered to every new coding-agent session.",
   "keywords": [
     "claude-code",
     "codex",

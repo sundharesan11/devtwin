@@ -10,7 +10,7 @@ devtwin is an early, local-first tool. This page lists its honest limits in one 
 - **macOS is the reference platform.** Linux is not a supported platform yet, although the test suite also runs there. Windows is unsupported.
 - **Node.js 22.13 or later.** There are no third-party runtime dependencies.
 - **Alpha releases.** devtwin is an alpha. A new release goes to the `alpha` dist-tag first, and `latest` follows when it is ready.
-- There is no upgrade-compatibility promise between alpha releases yet. An upgrade and a rollback each need a `live set-kit` and one setup batch.
+- There is no upgrade-compatibility promise between alpha releases yet. An upgrade and a rollback each need a `live set-kit`, one setup batch and the instruction block again.
 
 ## Your data
 
@@ -63,7 +63,7 @@ See the [security model](/docs/security/security-model/).
 - **devtwin never removes an OpenCode plugin file that it did not write.** For such a file, an install and an uninstall report `conflict`, and you delete or move it by hand. devtwin never creates the plugins folder either: create it before the install.
 - **An agent cannot be taken out of a live config.** After `live add-agent`, a kit that does not know the agent refuses the config, so you cannot roll back to such a kit. A kit from before OpenCode support refuses a config that names `opencode`.
 - **No lock on session caps.** Two hook calls in one session at the same time can both send a lesson, and both can post a note past the six-note cap.
-- **Exact roots.** A root reached through another symlink or a moved checkout does not match. A folder bound in two scopes gets no lessons.
+- **Exact roots.** A root reached through another symlink or a moved checkout does not match. A folder bound in two scopes gets no lessons. A linked worktree whose Git common directory holds bound roots of two or more projects gets no lessons either, with the reason `ambiguous-worktree`.
 - **The owner-action block is text-based.** It reads command text, not a parsed shell command. A command built in a way the text does not show can pass, and a harmless command that names an owner action can be denied. Previews stay open to agents, so every hub owner action also shows the owner dialog as a second gate. It does not protect a session that runs without the hook, or an agent that edits its settings files.
 - **The hub trusts push access.** Anyone who can push can add lessons and notes under any handle. devtwin does not verify the handle or the commit email.
 - **Deleted text stays in Git.** `published delete` removes the file and adds a tombstone, but Git history and colleagues' clones keep the text. A history rewrite is a manual step for the hub admin.

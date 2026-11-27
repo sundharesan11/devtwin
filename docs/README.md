@@ -14,6 +14,7 @@ Install devtwin with `npm i -g devtwin` and start with `devtwin demo`, a disposa
 | What does devtwin do on its own, and when does it ask me? | [Tiers](SECURITY-MODEL.md#tiers) and [Activity and undo](HARNESS.md#activity-and-undo) |
 | Where does each part fit? | [Architecture](ARCHITECTURE.md) |
 | How do I activate it on my machine? | [Live activation](LIVE.md) |
+| Which coding agents does it support? | [Live activation](LIVE.md): Claude Code and Codex in the steps, then [Gemini CLI](LIVE.md#gemini-cli), [Antigravity CLI](LIVE.md#antigravity-cli) and [OpenCode](LIVE.md#opencode) |
 | How do I upgrade to a new release, or roll back? | [Upgrading](UPGRADING.md) |
 | I set it up under the old devctx name. How do I move? | [Migrating from devctx](MIGRATING.md) |
 | How do I set up my personal profile, skill templates and announcement watch? | [Personal harness](HARNESS.md) |
@@ -58,5 +59,6 @@ Plans describe their milestone, not proof that every planned feature shipped. Us
 - [Organization identity routing](plans/2026-10-17-001-feat-organization-identity-routing-plan.md): planned, not implemented.
 - [devtwin next phase](plans/2026-10-25-001-feat-devtwin-next-phase-plan.md): lessons, hooks, setup, hubs, preferences, release radar and onboarding. Phases P0 to P5 are implemented. Its P6 moved to P9 of the promotion-phase plan.
 - [Promotion phase](plans/2026-10-27-001-feat-devtwin-promotion-phase-plan.md): tiers, consents, audit and undo, backups, delivery, promotion and the setup review. P6 to P9 are implemented. The real-agent scenarios and the colleague check wait for the owner.
+- [Antigravity CLI and OpenCode adapters](plans/2026-11-18-001-feat-antigravity-opencode-adapters-plan.md): implemented in 0.1.0-alpha.3.
 - [Skill-collection research](research/skill-collections.md): dated upstream observations, not a live compatibility guarantee.
 - Personal harness research: [context and memory](research/personal-harness/context-and-memory.md), [harness templates](research/personal-harness/harness-templates.md) and [starter skills](research/personal-harness/starter-skills.md).

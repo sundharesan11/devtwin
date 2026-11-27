@@ -92,4 +92,4 @@ The full list is on the [Limitations](/docs/security/limitations/) page.
 
 ## Where agents fit in
 
-You can use `devtwin` with no agent integration at all: run `context brief` and paste what matters. For a smoother loop, the bundled skills (`devtwin-onboard`, `devtwin-resume`, `devtwin-record` and `devtwin-capture`) let Claude Code and Codex call the CLI for you. With the devtwin hook installed, each session starts with the project summary and gets lesson lines as it works. See [Use it with coding agents](/docs/guides/coding-agents/).
+You can use `devtwin` with no agent integration at all: run `context brief` and paste what matters. For a smoother loop, the bundled skills (`devtwin-onboard`, `devtwin-resume`, `devtwin-record` and `devtwin-capture`) let Claude Code, Codex, Gemini CLI, Antigravity CLI and OpenCode call the CLI for you. With the devtwin hook installed, each session starts with the project summary and gets lesson lines as it works. See [Use it with coding agents](/docs/guides/coding-agents/).
