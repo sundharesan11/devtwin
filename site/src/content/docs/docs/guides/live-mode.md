@@ -380,7 +380,7 @@ For a package kit, an upgrade has six steps:
 5. Run `instructions plan`, then `instructions apply` in your own terminal. The instruction block names the kit folder in its command form, and the setup batch does not write the block.
 6. In Codex, run `/hooks` and trust each changed devtwin entry. Antigravity CLI and OpenCode have no such step.
 
-From 0.1.0-alpha.2, do steps 5 and 6: the old block has no command form, and each Codex hook entry changes. A rollback is `live set-kit` to an earlier folder from `devtwin kit list`, then one batch and the instruction block again. An earlier kit must know every agent in the live config. The [upgrade guide](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md) has every command, the provenance check, the nvm notes and the move from a Git clone to a package kit.
+When you upgrade from 0.1.0-alpha.2, steps 5 and 6 are required: the old block has no command form, and each Codex hook entry changes. A rollback is `live set-kit` to an earlier folder from `devtwin kit list`, then one batch and the instruction block again. An earlier kit must know every agent in the live config. The [upgrade guide](https://github.com/sundharesan11/devtwin/blob/main/docs/UPGRADING.md) has every command, the provenance check, the nvm notes and the move from a Git clone to a package kit.
 
 ### Upgrade a Git clone
 
